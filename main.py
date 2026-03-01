@@ -22,16 +22,17 @@ from astrbot.core.config.astrbot_config import AstrBotConfig
 YAO_COUNT = 6  # 六爻
 YAO_NAMES = ["初爻", "二爻", "三爻", "四爻", "五爻", "上爻"]  # 从下到上
 
-# 八卦线条映射（单爻线条）
+# 八卦线条映射（初爻→上爻顺序，即从下到上）
+# 索引0=初爻，索引1=二爻，索引2=三爻
 TRIGRAM_LINES: dict[str, list[str]] = {
-    "☰": ["━━━", "━━━", "━━━"],  # 乾
-    "☷": ["━ ━", "━ ━", "━ ━"],  # 坤
-    "☳": ["━ ━", "━ ━", "━━━"],  # 震
-    "☶": ["━━━", "━ ━", "━ ━"],  # 艮
-    "☲": ["━━━", "━ ━", "━━━"],  # 离
-    "☵": ["━ ━", "━━━", "━ ━"],  # 坎
-    "☱": ["━━━", "━━━", "━ ━"],  # 兑
-    "☴": ["━ ━", "━━━", "━━━"],  # 巽
+    "☰": ["━━━", "━━━", "━━━"],  # 乾：三阳
+    "☷": ["━ ━", "━ ━", "━ ━"],  # 坤：三阴
+    "☳": ["━━━", "━ ━", "━ ━"],  # 震：初阳二三阴（下阳上阴）
+    "☶": ["━ ━", "━ ━", "━━━"],  # 艮：初阴二阴三阳（下阴上阳）
+    "☲": ["━━━", "━ ━", "━━━"],  # 离：初阳中阴上阳
+    "☵": ["━ ━", "━━━", "━ ━"],  # 坎：初阴中阳上阴
+    "☱": ["━ ━", "━━━", "━━━"],  # 兑：初阴二阳三阳（下阴上阳）
+    "☴": ["━━━", "━━━", "━ ━"],  # 巽：初阳二阳三阴（下阳上阴）
 }
 
 # 程序化构造：线条到八卦符号的反向映射
@@ -56,6 +57,8 @@ def get_hexagram_display(
 ) -> str:
     """将卦象转换为六行显示格式，标记变爻
     
+    显示顺序：从上爻到初爻（传统卦象显示方式）
+    
     Args:
         hexagram_data: 卦象数据字典
         changing_positions: 变爻位置列表（从0开始，0=初爻）
@@ -66,13 +69,17 @@ def get_hexagram_display(
     gua_xiang = hexagram_data.get("卦象", "")
     lines = []
     
+    # 构建 all_lines：索引0=初爻，索引5=上爻
     if len(gua_xiang) == 1 and gua_xiang in TRIGRAM_LINES:
+        # 纯卦：上下卦相同
         display_lines = TRIGRAM_LINES[gua_xiang]
-        all_lines = display_lines + display_lines
+        all_lines = display_lines + display_lines  # 初爻→上爻
     elif len(gua_xiang) == 2:
+        # 重卦：gua_xiang[0]=上卦符号，gua_xiang[1]=下卦符号
         upper_lines = TRIGRAM_LINES.get(gua_xiang[0], ["?", "?", "?"])
         lower_lines = TRIGRAM_LINES.get(gua_xiang[1], ["?", "?", "?"])
-        all_lines = upper_lines + lower_lines
+        # all_lines: 索引0-2=下卦（初二三爻），索引3-5=上卦（四五上爻）
+        all_lines = lower_lines + upper_lines
     else:
         return gua_xiang
     
@@ -148,7 +155,7 @@ def lines_to_hexagram(lines: list[str], hexagrams: dict) -> Optional[tuple[str, 
     """根据六爻线条查找对应的卦
     
     Args:
-        lines: 从初爻到上爻的线条列表
+        lines: 从初爻到上爻的线条列表（索引0=初爻）
         hexagrams: 卦象数据字典
     
     Returns:
@@ -157,19 +164,22 @@ def lines_to_hexagram(lines: list[str], hexagrams: dict) -> Optional[tuple[str, 
     if len(lines) != YAO_COUNT:
         return None
     
-    upper_lines = lines[3:6]  # 上卦（四五六爻）
-    lower_lines = lines[0:3]  # 下卦（初二三爻）
+    # 下卦（初二三爻）：lines[0:3]
+    # 上卦（四五上爻）：lines[3:6]
+    lower_lines = lines[0:3]
+    upper_lines = lines[3:6]
     
-    upper_key = "".join(upper_lines)
     lower_key = "".join(lower_lines)
+    upper_key = "".join(upper_lines)
     
-    upper_symbol = LINES_TO_TRIGRAM.get(upper_key)
     lower_symbol = LINES_TO_TRIGRAM.get(lower_key)
+    upper_symbol = LINES_TO_TRIGRAM.get(upper_key)
     
-    if upper_symbol is None or lower_symbol is None:
-        logger.warning(f"无法识别卦象: 上卦={upper_key}, 下卦={lower_key}")
+    if lower_symbol is None or upper_symbol is None:
+        logger.warning(f"无法识别卦象: 下卦={lower_key}, 上卦={upper_key}")
         return None
     
+    # 在卦象数据中查找匹配的卦
     for name, data in hexagrams.items():
         gua_xiang = data.get("卦象", "")
         if len(gua_xiang) == 1:
@@ -177,7 +187,7 @@ def lines_to_hexagram(lines: list[str], hexagrams: dict) -> Optional[tuple[str, 
             if gua_xiang == upper_symbol == lower_symbol:
                 return name, data
         elif len(gua_xiang) == 2:
-            # 重卦
+            # 重卦：gua_xiang[0]=上卦，gua_xiang[1]=下卦
             if gua_xiang[0] == upper_symbol and gua_xiang[1] == lower_symbol:
                 return name, data
     
@@ -190,7 +200,7 @@ def apply_changing_yaos(lines: list[str], changing_positions: list[int]) -> list
     老阳变阴，老阴变阳
     
     Args:
-        lines: 原始六爻线条
+        lines: 原始六爻线条（初爻→上爻）
         changing_positions: 变爻位置列表
     
     Returns:
@@ -433,11 +443,11 @@ class SuanguaPlugin(star.Star):
         Raises:
             RuntimeError: 卦象匹配失败
         """
-        lines = []
+        lines = []  # 索引0=初爻，索引5=上爻
         changing_positions = []
         divination_process = []
         
-        # 抛掷六次铜钱
+        # 抛掷六次铜钱（从初爻到上爻）
         for i in range(YAO_COUNT):
             result = throw_three_coins()
             lines.append(result["line"])
@@ -459,7 +469,7 @@ class SuanguaPlugin(star.Star):
         if not result:
             # 匹配失败，记录详细信息并报错
             lines_str = ", ".join(lines)
-            logger.error(f"卦象匹配失败！六爻线条: [{lines_str}]")
+            logger.error(f"卦象匹配失败！六爻线条（初爻→上爻）: [{lines_str}]")
             raise RuntimeError(
                 f"卦象解析失败，无法识别六爻组合。"
                 f"请检查卦象数据是否完整。六爻: {lines_str}"
@@ -528,7 +538,8 @@ class SuanguaPlugin(star.Star):
             
             if persona:
                 persona_system_prompt = persona.get("prompt", "")
-                logger.debug(f"使用人格系统提示词: {persona_system_prompt[:50]}...")
+                # 仅记录元信息，不记录实际内容
+                logger.debug(f"已加载人格提示词，长度: {len(persona_system_prompt)}")
         except Exception as e:
             logger.debug(f"获取人格失败，使用默认提示词: {e}")
         
@@ -623,7 +634,7 @@ class SuanguaPlugin(star.Star):
     
     # ==================== 指令调用 ====================
     
-    @filter.command("suangua", alias={"算卦", "算一卦", "占卜"})
+    @filter.command("算卦", alias={"算一卦", "占卜"})
     async def divine(self, event: AstrMessageEvent) -> None:
         """算卦 - 采用传统金钱卦起卦法"""
         logger.info("收到算卦请求")
@@ -647,11 +658,11 @@ class SuanguaPlugin(star.Star):
             changed_name, changed_data,
             divination_process=divination_process if self._show_divination_process else None
         )
-        result += "\n\n💡 引用此消息发送「ai解卦」可获取AI详细解读"
+        result += "\n\n💡 引用此消息发送「AI解卦」可获取AI详细解读"
         
         event.set_result(MessageEventResult().message(result).use_t2i(False))
     
-    @filter.command("aijiiegua", alias={"ai解卦", "AI解卦"})
+    @filter.command("AI解卦", alias={"ai解卦"})
     async def ai_divine(self, event: AstrMessageEvent) -> None:
         """AI解卦 - 引用算卦结果进行AI解卦（使用当前会话人格）"""
         logger.info("收到AI解卦请求")
@@ -667,11 +678,11 @@ class SuanguaPlugin(star.Star):
         
         if not has_reply or not reply_content:
             event.set_result(MessageEventResult().message(
-                "请引用算卦结果后再发送「ai解卦」\n\n"
+                "请引用算卦结果后再发送「AI解卦」\n\n"
                 "📝 使用方法：\n"
                 "1. 长按算卦结果消息\n"
                 "2. 选择「引用」\n"
-                "3. 发送「ai解卦」"
+                "3. 发送「AI解卦」"
             ).use_t2i(False))
             return
         
@@ -729,7 +740,7 @@ class SuanguaPlugin(star.Star):
         use_t2i = self._ai_divine_use_t2i
         event.set_result(MessageEventResult().message(result).use_t2i(use_t2i))
     
-    @filter.command("guaxiang", alias={"卦象", "查卦"})
+    @filter.command("卦象", alias={"查卦"})
     async def hexagram_info(self, event: AstrMessageEvent, name: str = "") -> None:
         """卦象查询
         
@@ -761,7 +772,7 @@ class SuanguaPlugin(star.Star):
         
         event.set_result(MessageEventResult().message(result).use_t2i(False))
     
-    @filter.command("liushisigua", alias={"六十四卦", "卦列表"})
+    @filter.command("六十四卦", alias={"卦列表"})
     async def list_hexagrams(self, event: AstrMessageEvent) -> None:
         """六十四卦列表"""
         if not self._hexagrams:
