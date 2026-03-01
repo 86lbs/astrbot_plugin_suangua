@@ -738,7 +738,35 @@ class SuanguaPlugin(star.Star):
         
         # 根据配置决定是否使用 t2i
         use_t2i = self._ai_divine_use_t2i
-        event.set_result(MessageEventResult().message(result).use_t2i(use_t2i))
+        event.set_result(MessageEventResult().message(result).use_t2i(use_t2i).use_markdown(use_t2i))
+    
+    @filter.command("算卦帮助", alias={"卦帮助", "帮助算卦"})
+    async def help_info(self, event: AstrMessageEvent) -> None:
+        """显示算卦插件帮助信息"""
+        help_text = """【易经算卦插件帮助】
+
+📋 指令列表：
+  /算卦 [问题]     - 生成卦象
+  /算一卦          - 同上
+  /AI解卦          - AI详细解读（需引用算卦结果）
+  /卦象 <卦名>     - 查询特定卦象
+  /六十四卦        - 列出所有卦象
+
+📖 使用方法：
+1. 发送 /算卦 进行起卦
+2. 长按算卦结果，选择「引用」
+3. 发送 /AI解卦 获取AI解读
+
+⚙️ 配置项：
+• 启用变卦 - 是否产生变爻
+• 显示起卦过程 - 显示抛掷铜钱详情
+• AI解卦使用T2I - AI解卦结果转图片
+
+💡 提示：
+• 可在算卦后附带问题，如：/算卦 事业
+• AI解卦会使用当前会话的人格风格"""
+
+        event.set_result(MessageEventResult().message(help_text).use_t2i(False))
     
     @filter.command("卦象", alias={"查卦"})
     async def hexagram_info(self, event: AstrMessageEvent, name: str = "") -> None:
