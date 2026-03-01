@@ -634,7 +634,7 @@ class SuanguaPlugin(star.Star):
     
     # ==================== 指令调用 ====================
     
-    @filter.command("算卦", alias={"算一卦", "占卜"})
+    @filter.command("算卦", alias={"算一卦"})
     async def divine(self, event: AstrMessageEvent) -> None:
         """算卦 - 采用传统金钱卦起卦法"""
         logger.info("收到算卦请求")
