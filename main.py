@@ -225,7 +225,6 @@ class SuanguaPlugin(star.Star):
                 logger.info(f"算卦插件配置：变卦={'开启' if self._enable_changing else '关闭'}，AI解卦T2I={'开启' if self._ai_divine_use_t2i else '关闭'}")
             except Exception as e:
                 logger.warning(f"读取插件配置失败，使用默认值: {e}")
-                # 确保使用默认值（已在 __init__ 中初始化）
     
     async def initialize(self):
         """插件初始化"""
@@ -236,7 +235,14 @@ class SuanguaPlugin(star.Star):
             logger.warning("算卦插件初始化失败，请检查 hexagrams.json 文件")
     
     def _get_reply_content(self, event: AstrMessageEvent) -> tuple[bool, str]:
-        """获取引用消息的内容"""
+        """获取引用消息的内容
+        
+        Args:
+            event: 消息事件
+        
+        Returns:
+            (是否找到引用, 引用内容)
+        """
         messages = event.get_messages()
         
         for msg in messages:
@@ -327,8 +333,10 @@ class SuanguaPlugin(star.Star):
             lines.append(f"卦性：{changed_hexagram_data.get('性质', '未知')}")
             lines.append(f"含义：{changed_hexagram_data.get('含义', '未知')}")
             
-            yao_names = [YAO_NAMES[pos] for pos in changing_positions]
-            lines.append(f"变爻：{'、'.join(yao_names)}")
+            # 变卦存在时，changing_positions 应该不为空
+            if changing_positions:
+                yao_names = [YAO_NAMES[pos] for pos in changing_positions]
+                lines.append(f"变爻：{'、'.join(yao_names)}")
         
         # 运势指引
         interpretations = [
@@ -351,7 +359,10 @@ class SuanguaPlugin(star.Star):
         
         return result
     
-    def _do_divination(self, enable_change: bool = True) -> tuple:
+    def _do_divination(
+        self, 
+        enable_change: bool = True
+    ) -> tuple[str, dict, list[int], Optional[str], Optional[dict], list[dict]]:
         """执行算卦
         
         Args:
@@ -468,7 +479,7 @@ class SuanguaPlugin(star.Star):
 卦象：{changed_data.get('卦象', '未知')}
 性质：{changed_data.get('性质', '未知')}
 基本含义：{changed_data.get('含义', '未知')}
-变爻位置：{'、'.join(yao_names)}
+变爻位置：{'、'.join(yao_names) if yao_names else '未知'}
 
 请结合本卦和变卦进行综合解卦，说明事物的发展变化。"""
 
@@ -496,7 +507,7 @@ class SuanguaPlugin(star.Star):
             if text and isinstance(text, str) and text.strip():
                 return text.strip()
             
-            logger.warning(f"AI 返回内容为空")
+            logger.warning("AI 返回内容为空")
             return "AI未返回有效内容，请稍后重试。"
             
         except asyncio.CancelledError:
@@ -504,7 +515,7 @@ class SuanguaPlugin(star.Star):
             raise
         except Exception as e:
             logger.error(f"AI 解卦失败: {e}")
-            return f"AI解卦出错，请稍后重试。"
+            return "AI解卦出错，请稍后重试。"
     
     # ==================== LLM 工具调用 ====================
     
@@ -588,7 +599,7 @@ class SuanguaPlugin(star.Star):
         # 从引用内容中提取卦名
         match = re.search(r"【(.+?)卦】", reply_content)
         if not match:
-            logger.warning(f"无法从引用内容中提取卦名")
+            logger.warning("无法从引用内容中提取卦名")
             event.set_result(MessageEventResult().message("无法识别引用的卦象，请引用正确的算卦结果").use_t2i(False))
             return
         
@@ -604,17 +615,25 @@ class SuanguaPlugin(star.Star):
         # 检查是否有变卦
         changed_name = None
         changed_data = None
+        changing_positions = []
         change_match = re.search(r"【变卦：(.+?)卦】", reply_content)
         if change_match:
             changed_name = change_match.group(1)
             if changed_name in self._hexagrams:
                 changed_data = self._hexagrams[changed_name]
+                # 尝试从引用内容中提取变爻位置
+                yao_match = re.search(r"变爻：(.+?)(?:\n|$)", reply_content)
+                if yao_match:
+                    yao_str = yao_match.group(1)
+                    for i, name in enumerate(YAO_NAMES):
+                        if name in yao_str:
+                            changing_positions.append(i)
         
         # 先发送等待提示
         await event.send(event.plain_result(f"正在为您AI解卦【{hexagram_name}卦】，请稍候..."))
         
         ai_result = await self._get_ai_interpretation(
-            event, hexagram_name, hexagram_data, changed_name, changed_data
+            event, hexagram_name, hexagram_data, changed_name, changed_data, changing_positions
         )
         
         hexagram_display = get_hexagram_display(hexagram_data)
