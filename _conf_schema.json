@@ -10,5 +10,11 @@
     "description": "是否显示每次抛掷铜钱的结果。",
     "type": "bool",
     "value": false
+  },
+  "ai_divine_use_t2i": {
+    "name": "AI解卦使用T2I",
+    "description": "AI解卦结果是否使用文本转图片功能。开启后会将AI解卦结果转换为图片显示。",
+    "type": "bool",
+    "value": true
   }
 }
