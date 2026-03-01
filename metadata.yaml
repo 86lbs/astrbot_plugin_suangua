@@ -1,6 +1,6 @@
 name: astrbot_plugin_suangua
 display_name: 易经算卦
-desc: 易经六十四卦算卦插件，支持指令调用和AI函数工具调用
-version: v4.0.0
+desc: 易经六十四卦算卦插件，采用传统金钱卦起卦法，支持指令调用和AI函数工具调用
+version: v4.1.0
 author: z-ai & 申辰
 repo: https://github.com/86lbs/astrbot_plugin_suangua
