@@ -217,9 +217,6 @@ class SuanguaPlugin(star.Star):
         self._enable_changing = True
         self._show_divination_process = False
         self._ai_divine_use_t2i = True
-        # 起卦结果缓存（用于AI解卦验证）
-        # key: 消息ID, value: (卦名, 卦数据, 变爻位置, 变卦名, 变卦数据)
-        self._divination_cache: dict[str, tuple] = {}
     
     def _load_hexagrams(self) -> bool:
         """加载六十四卦数据"""
@@ -249,7 +246,7 @@ class SuanguaPlugin(star.Star):
             logger.error(f"加载卦象数据失败: {e}")
             return False
     
-    def _load_config(self):
+    def _load_config(self) -> None:
         """加载插件配置"""
         if self._config:
             try:
@@ -283,7 +280,7 @@ class SuanguaPlugin(star.Star):
                     return False
         return True
     
-    async def initialize(self):
+    async def initialize(self) -> None:
         """插件初始化"""
         self._load_config()
         if self._load_hexagrams():
@@ -627,7 +624,7 @@ class SuanguaPlugin(star.Star):
     # ==================== 指令调用 ====================
     
     @filter.command("suangua", alias={"算卦", "算一卦", "占卜"})
-    async def divine(self, event: AstrMessageEvent):
+    async def divine(self, event: AstrMessageEvent) -> None:
         """算卦 - 采用传统金钱卦起卦法"""
         logger.info("收到算卦请求")
         
@@ -655,7 +652,7 @@ class SuanguaPlugin(star.Star):
         event.set_result(MessageEventResult().message(result).use_t2i(False))
     
     @filter.command("aijiiegua", alias={"ai解卦", "AI解卦"})
-    async def ai_divine(self, event: AstrMessageEvent):
+    async def ai_divine(self, event: AstrMessageEvent) -> None:
         """AI解卦 - 引用算卦结果进行AI解卦（使用当前会话人格）"""
         logger.info("收到AI解卦请求")
         
@@ -733,7 +730,7 @@ class SuanguaPlugin(star.Star):
         event.set_result(MessageEventResult().message(result).use_t2i(use_t2i))
     
     @filter.command("guaxiang", alias={"卦象", "查卦"})
-    async def hexagram_info(self, event: AstrMessageEvent, name: str = ""):
+    async def hexagram_info(self, event: AstrMessageEvent, name: str = "") -> None:
         """卦象查询
         
         Args:
@@ -765,7 +762,7 @@ class SuanguaPlugin(star.Star):
         event.set_result(MessageEventResult().message(result).use_t2i(False))
     
     @filter.command("liushisigua", alias={"六十四卦", "卦列表"})
-    async def list_hexagrams(self, event: AstrMessageEvent):
+    async def list_hexagrams(self, event: AstrMessageEvent) -> None:
         """六十四卦列表"""
         if not self._hexagrams:
             if not self._load_hexagrams():
@@ -783,6 +780,6 @@ class SuanguaPlugin(star.Star):
         
         event.set_result(MessageEventResult().message(result).use_t2i(False))
     
-    async def terminate(self):
+    async def terminate(self) -> None:
         """插件销毁"""
         logger.info("算卦插件已卸载")
