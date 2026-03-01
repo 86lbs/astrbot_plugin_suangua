@@ -1,0 +1,14 @@
+{
+  "enable_changing": {
+    "name": "启用变卦",
+    "description": "是否启用变卦功能。开启后，起卦时可能产生变爻，显示本卦和变卦。",
+    "type": "bool",
+    "value": true
+  },
+  "show_divination_process": {
+    "name": "显示起卦过程",
+    "description": "是否显示每次抛掷铜钱的结果。",
+    "type": "bool",
+    "value": false
+  }
+}

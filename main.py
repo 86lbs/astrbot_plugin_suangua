@@ -13,11 +13,8 @@ from astrbot.api import llm_tool, logger, star
 from astrbot.api.event import AstrMessageEvent, MessageEventResult, filter
 from astrbot.api.message_components import Reply
 from astrbot.api.star import Context
-from astrbot.core.star.config import load_config, put_config
+from astrbot.core.config.astrbot_config import AstrBotConfig
 
-
-# 插件配置命名空间
-CONFIG_NAMESPACE = "astrbot_plugin_suangua"
 
 # 八卦线条映射
 TRIGRAM_LINES: dict[str, list[str]] = {
@@ -173,11 +170,12 @@ def apply_changing_yaos(lines: list[str], changing_positions: list[int]) -> list
 class SuanguaPlugin(star.Star):
     """算卦插件 - 支持指令调用和 LLM 工具调用"""
     
-    def __init__(self, context: Context):
+    def __init__(self, context: Context, config: AstrBotConfig = None):
         super().__init__(context)
         self._hexagrams: dict[str, dict] = {}
         self._loaded = False
-        # 插件配置（默认值）
+        # 插件配置
+        self._config = config
         self._enable_changing = True  # 启用变卦
         self._show_divination_process = False  # 显示起卦过程
     
@@ -217,30 +215,13 @@ class SuanguaPlugin(star.Star):
     
     def _load_config(self):
         """加载插件配置"""
-        # 注册配置项（如果不存在）
-        put_config(
-            namespace=CONFIG_NAMESPACE,
-            name="启用变卦",
-            key="enable_changing",
-            value=True,
-            description="是否启用变卦功能。开启后，起卦时可能产生变爻，显示本卦和变卦。"
-        )
-        put_config(
-            namespace=CONFIG_NAMESPACE,
-            name="显示起卦过程",
-            key="show_divination_process",
-            value=False,
-            description="是否显示每次抛掷铜钱的结果。"
-        )
-        
-        # 加载配置
-        config = load_config(CONFIG_NAMESPACE)
-        if config:
-            self._enable_changing = config.get("enable_changing", True)
-            self._show_divination_process = config.get("show_divination_process", False)
-            logger.info(f"算卦插件配置加载完成：变卦={'开启' if self._enable_changing else '关闭'}")
-        else:
-            logger.info("算卦插件使用默认配置")
+        if self._config:
+            try:
+                self._enable_changing = self._config.get("enable_changing", True)
+                self._show_divination_process = self._config.get("show_divination_process", False)
+                logger.info(f"算卦插件配置：变卦={'开启' if self._enable_changing else '关闭'}，显示过程={'开启' if self._show_divination_process else '关闭'}")
+            except Exception as e:
+                logger.warning(f"读取插件配置失败，使用默认值: {e}")
     
     async def initialize(self):
         """插件初始化"""
@@ -285,7 +266,7 @@ class SuanguaPlugin(star.Star):
         if divination_process and self._show_divination_process:
             lines.append("【起卦过程】")
             for i, result in enumerate(divination_process):
-                lines.append(f"  第{i+1}掷：{result['name']} ({result['coins']}) → {result['line']}")
+                lines.append(f"  第{i+1}掷：{result['name']} → {result['line']}")
             lines.append("")
         
         # 本卦信息
@@ -364,11 +345,9 @@ class SuanguaPlugin(star.Star):
             lines.append(result["line"])
             
             # 记录起卦过程
-            coin_desc = "正" if random.random() > 0.5 else "反"  # 仅用于显示
             divination_process.append({
                 "name": result["name"],
                 "line": result["line"],
-                "coins": coin_desc,
                 "changing": result["changing"]
             })
             
