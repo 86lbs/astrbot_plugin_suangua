@@ -22,7 +22,7 @@ from astrbot.core.config.astrbot_config import AstrBotConfig
 YAO_COUNT = 6  # 六爻
 YAO_NAMES = ["初爻", "二爻", "三爻", "四爻", "五爻", "上爻"]  # 从下到上
 
-# 八卦线条映射
+# 八卦线条映射（单爻线条）
 TRIGRAM_LINES: dict[str, list[str]] = {
     "☰": ["━━━", "━━━", "━━━"],  # 乾
     "☷": ["━ ━", "━ ━", "━ ━"],  # 坤
@@ -34,17 +34,12 @@ TRIGRAM_LINES: dict[str, list[str]] = {
     "☴": ["━ ━", "━━━", "━━━"],  # 巽
 }
 
-# 线条到八卦符号的反向映射（上中下爻组合）
-LINES_TO_TRIGRAM: dict[str, str] = {
-    "━━━━━━━━━━": "☰",  # 三阳 - 乾
-    "━ ━━ ━━ ━": "☷",  # 三阴 - 坤
-    "━ ━━ ━━━━━": "☳",  # 下阳 - 震
-    "━━━━━ ━━ ━": "☶",  # 上阳 - 艮
-    "━━━━━ ━━━━━": "☲",  # 中阴 - 离
-    "━ ━━━━━━━━ ━": "☵",  # 中阳 - 坎
-    "━━━━━━━━━━━ ━": "☱",  # 上阴 - 兑
-    "━ ━━━━━━━━━━━": "☴",  # 下阴 - 巽
-}
+# 程序化构造：线条到八卦符号的反向映射
+# 从 TRIGRAM_LINES 自动生成，避免手写不一致
+LINES_TO_TRIGRAM: dict[str, str] = {}
+for symbol, lines in TRIGRAM_LINES.items():
+    key = "".join(lines)
+    LINES_TO_TRIGRAM[key] = symbol
 
 # 金钱卦结果映射
 COIN_RESULT = {
@@ -96,13 +91,42 @@ def get_hexagram_display(
 
 
 def validate_hexagram_data(data: dict, name: str) -> bool:
-    """验证卦象数据结构"""
+    """验证卦象数据结构（严格校验）
+    
+    Args:
+        data: 卦象数据字典
+        name: 卦名（用于日志）
+    
+    Returns:
+        数据是否有效
+    """
     required_fields = ["卦象", "性质", "含义", "爻辞"]
+    
+    # 检查必需字段
     for field in required_fields:
         if field not in data:
+            logger.warning(f"卦象 {name} 缺少字段: {field}")
             return False
-        if field == "爻辞" and not isinstance(data[field], list):
+    
+    # 检查卦象格式
+    gua_xiang = data.get("卦象", "")
+    if len(gua_xiang) not in [1, 2]:
+        logger.warning(f"卦象 {name} 的卦象格式无效: {gua_xiang}")
+        return False
+    
+    # 检查爻辞：必须是长度为6的列表，每个元素都是字符串
+    yao_ci = data.get("爻辞")
+    if not isinstance(yao_ci, list):
+        logger.warning(f"卦象 {name} 的爻辞不是列表")
+        return False
+    if len(yao_ci) != YAO_COUNT:
+        logger.warning(f"卦象 {name} 的爻辞长度不是6: {len(yao_ci)}")
+        return False
+    for i, yao in enumerate(yao_ci):
+        if not isinstance(yao, str):
+            logger.warning(f"卦象 {name} 的第{i}爻不是字符串")
             return False
+    
     return True
 
 
@@ -128,7 +152,7 @@ def lines_to_hexagram(lines: list[str], hexagrams: dict) -> Optional[tuple[str, 
         hexagrams: 卦象数据字典
     
     Returns:
-        (卦名, 卦象数据) 或 None
+        (卦名, 卦象数据) 或 None（匹配失败）
     """
     if len(lines) != YAO_COUNT:
         return None
@@ -136,8 +160,15 @@ def lines_to_hexagram(lines: list[str], hexagrams: dict) -> Optional[tuple[str, 
     upper_lines = lines[3:6]  # 上卦（四五六爻）
     lower_lines = lines[0:3]  # 下卦（初二三爻）
     
-    upper_symbol = LINES_TO_TRIGRAM.get("".join(upper_lines), "?")
-    lower_symbol = LINES_TO_TRIGRAM.get("".join(lower_lines), "?")
+    upper_key = "".join(upper_lines)
+    lower_key = "".join(lower_lines)
+    
+    upper_symbol = LINES_TO_TRIGRAM.get(upper_key)
+    lower_symbol = LINES_TO_TRIGRAM.get(lower_key)
+    
+    if upper_symbol is None or lower_symbol is None:
+        logger.warning(f"无法识别卦象: 上卦={upper_key}, 下卦={lower_key}")
+        return None
     
     for name, data in hexagrams.items():
         gua_xiang = data.get("卦象", "")
@@ -186,6 +217,9 @@ class SuanguaPlugin(star.Star):
         self._enable_changing = True
         self._show_divination_process = False
         self._ai_divine_use_t2i = True
+        # 起卦结果缓存（用于AI解卦验证）
+        # key: 消息ID, value: (卦名, 卦数据, 变爻位置, 变卦名, 变卦数据)
+        self._divination_cache: dict[str, tuple] = {}
     
     def _load_hexagrams(self) -> bool:
         """加载六十四卦数据"""
@@ -226,30 +260,58 @@ class SuanguaPlugin(star.Star):
             except Exception as e:
                 logger.warning(f"读取插件配置失败，使用默认值: {e}")
     
+    def _validate_mapping_consistency(self) -> bool:
+        """验证卦象映射一致性
+        
+        检查所有加载的卦象是否能正确映射到八卦符号
+        
+        Returns:
+            映射是否一致
+        """
+        for name, data in self._hexagrams.items():
+            gua_xiang = data.get("卦象", "")
+            if len(gua_xiang) == 1:
+                if gua_xiang not in TRIGRAM_LINES:
+                    logger.error(f"卦象 {name} 的符号 {gua_xiang} 不在八卦映射中")
+                    return False
+            elif len(gua_xiang) == 2:
+                if gua_xiang[0] not in TRIGRAM_LINES:
+                    logger.error(f"卦象 {name} 的上卦符号 {gua_xiang[0]} 不在八卦映射中")
+                    return False
+                if gua_xiang[1] not in TRIGRAM_LINES:
+                    logger.error(f"卦象 {name} 的下卦符号 {gua_xiang[1]} 不在八卦映射中")
+                    return False
+        return True
+    
     async def initialize(self):
         """插件初始化"""
         self._load_config()
         if self._load_hexagrams():
-            logger.info("算卦插件初始化完成")
+            if self._validate_mapping_consistency():
+                logger.info("算卦插件初始化完成，卦象映射验证通过")
+            else:
+                logger.warning("算卦插件初始化完成，但卦象映射存在不一致")
         else:
             logger.warning("算卦插件初始化失败，请检查 hexagrams.json 文件")
     
-    def _get_reply_content(self, event: AstrMessageEvent) -> tuple[bool, str]:
+    def _get_reply_content(self, event: AstrMessageEvent) -> tuple[bool, str, Optional[str]]:
         """获取引用消息的内容
         
         Args:
             event: 消息事件
         
         Returns:
-            (是否找到引用, 引用内容)
+            (是否找到引用, 引用内容, 消息ID)
         """
         messages = event.get_messages()
         
         for msg in messages:
             if isinstance(msg, Reply):
+                message_id = getattr(msg, 'message_id', None)
+                
                 # 方法1：直接使用 message_str
                 if hasattr(msg, 'message_str') and isinstance(msg.message_str, str) and msg.message_str.strip():
-                    return True, msg.message_str.strip()
+                    return True, msg.message_str.strip(), message_id
                 
                 # 方法2：从 chain 中提取文本
                 if hasattr(msg, 'chain') and msg.chain:
@@ -260,13 +322,13 @@ class SuanguaPlugin(star.Star):
                         elif hasattr(comp, 'text') and isinstance(comp.text, str):
                             reply_text += comp.text
                     if reply_text.strip():
-                        return True, reply_text.strip()
+                        return True, reply_text.strip(), message_id
                 
                 # 方法3：使用 text 字段
                 if hasattr(msg, 'text') and isinstance(msg.text, str) and msg.text.strip():
-                    return True, msg.text.strip()
+                    return True, msg.text.strip(), message_id
         
-        return False, ""
+        return False, "", None
     
     def _build_divination_result(
         self, 
@@ -370,6 +432,9 @@ class SuanguaPlugin(star.Star):
         
         Returns:
             (本卦名, 本卦数据, 变爻位置, 变卦名, 变卦数据, 起卦过程)
+        
+        Raises:
+            RuntimeError: 卦象匹配失败
         """
         lines = []
         changing_positions = []
@@ -395,12 +460,15 @@ class SuanguaPlugin(star.Star):
         # 查找本卦
         result = lines_to_hexagram(lines, self._hexagrams)
         if not result:
-            # 如果找不到对应卦，随机选择一个
-            hexagram_name = random.choice(list(self._hexagrams.keys()))
-            hexagram_data = self._hexagrams[hexagram_name]
-            changing_positions = []
-        else:
-            hexagram_name, hexagram_data = result
+            # 匹配失败，记录详细信息并报错
+            lines_str = ", ".join(lines)
+            logger.error(f"卦象匹配失败！六爻线条: [{lines_str}]")
+            raise RuntimeError(
+                f"卦象解析失败，无法识别六爻组合。"
+                f"请检查卦象数据是否完整。六爻: {lines_str}"
+            )
+        
+        hexagram_name, hexagram_data = result
         
         # 计算变卦
         changed_hexagram_name = None
@@ -410,6 +478,10 @@ class SuanguaPlugin(star.Star):
             changed_result = lines_to_hexagram(new_lines, self._hexagrams)
             if changed_result:
                 changed_hexagram_name, changed_hexagram_data = changed_result
+            else:
+                # 变卦匹配失败，记录警告但继续
+                new_lines_str = ", ".join(new_lines)
+                logger.warning(f"变卦匹配失败！变爻后六爻: [{new_lines_str}]")
         
         return (hexagram_name, hexagram_data, changing_positions, 
                 changed_hexagram_name, changed_hexagram_data, divination_process)
@@ -527,7 +599,7 @@ class SuanguaPlugin(star.Star):
         Args:
             question(string): 用户想要询问的问题或想要了解的方面（可选）
         """
-        has_reply, reply_content = self._get_reply_content(event)
+        has_reply, reply_content, _ = self._get_reply_content(event)
         if has_reply and reply_content:
             question = reply_content
         
@@ -535,9 +607,12 @@ class SuanguaPlugin(star.Star):
             if not self._load_hexagrams():
                 return "卦象数据加载失败，请联系管理员检查插件配置。"
         
-        (hexagram_name, hexagram_data, changing_positions,
-         changed_name, changed_data, divination_process) = \
-            self._do_divination(enable_change=self._enable_changing)
+        try:
+            (hexagram_name, hexagram_data, changing_positions,
+             changed_name, changed_data, divination_process) = \
+                self._do_divination(enable_change=self._enable_changing)
+        except RuntimeError as e:
+            return f"算卦过程出错：{e}"
         
         result = self._build_divination_result(
             hexagram_name, hexagram_data, changing_positions,
@@ -561,9 +636,14 @@ class SuanguaPlugin(star.Star):
                 event.set_result(MessageEventResult().message("卦象数据加载失败，请联系管理员检查插件配置。").use_t2i(False))
                 return
         
-        (hexagram_name, hexagram_data, changing_positions,
-         changed_name, changed_data, divination_process) = \
-            self._do_divination(enable_change=self._enable_changing)
+        try:
+            (hexagram_name, hexagram_data, changing_positions,
+             changed_name, changed_data, divination_process) = \
+                self._do_divination(enable_change=self._enable_changing)
+        except RuntimeError as e:
+            logger.error(f"算卦失败: {e}")
+            event.set_result(MessageEventResult().message(f"算卦过程出错：{e}").use_t2i(False))
+            return
         
         result = self._build_divination_result(
             hexagram_name, hexagram_data, changing_positions,
@@ -579,12 +659,14 @@ class SuanguaPlugin(star.Star):
         """AI解卦 - 引用算卦结果进行AI解卦（使用当前会话人格）"""
         logger.info("收到AI解卦请求")
         
+        # 统一懒加载路径
         if not self._hexagrams:
-            event.set_result(MessageEventResult().message("卦象数据加载失败，请联系管理员检查插件配置。").use_t2i(False))
-            return
+            if not self._load_hexagrams():
+                event.set_result(MessageEventResult().message("卦象数据加载失败，请联系管理员检查插件配置。").use_t2i(False))
+                return
         
-        has_reply, reply_content = self._get_reply_content(event)
-        logger.info(f"引用消息检测结果: has_reply={has_reply}")
+        has_reply, reply_content, message_id = self._get_reply_content(event)
+        logger.info(f"引用消息检测结果: has_reply={has_reply}, message_id={message_id}")
         
         if not has_reply or not reply_content:
             event.set_result(MessageEventResult().message(
@@ -658,8 +740,9 @@ class SuanguaPlugin(star.Star):
             name: 卦名
         """
         if not self._hexagrams:
-            event.set_result(MessageEventResult().message("卦象数据加载失败，请联系管理员检查插件配置。").use_t2i(False))
-            return
+            if not self._load_hexagrams():
+                event.set_result(MessageEventResult().message("卦象数据加载失败，请联系管理员检查插件配置。").use_t2i(False))
+                return
         
         hexagram_name = name.strip() if name else ""
         
@@ -685,8 +768,9 @@ class SuanguaPlugin(star.Star):
     async def list_hexagrams(self, event: AstrMessageEvent):
         """六十四卦列表"""
         if not self._hexagrams:
-            event.set_result(MessageEventResult().message("卦象数据加载失败，请联系管理员检查插件配置。").use_t2i(False))
-            return
+            if not self._load_hexagrams():
+                event.set_result(MessageEventResult().message("卦象数据加载失败，请联系管理员检查插件配置。").use_t2i(False))
+                return
         
         result = "【六十四卦列表】\n\n"
         
