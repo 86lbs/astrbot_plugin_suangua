@@ -231,6 +231,9 @@ class SuanguaPlugin(star.Star):
         self._ai_divine_use_t2i = True
         self._ai_waiting_message = "正在为您AI解卦【{卦名}卦】，请稍候..."
         self._show_ai_hint = True
+        # 算卦结果缓存：key=unified_msg_origin, value=最近一次算卦结果
+        # 结构: (hexagram_name, hexagram_data, changed_name, changed_data, changing_positions)
+        self._divination_cache: dict[str, tuple] = {}
     
     def _load_hexagrams(self) -> bool:
         """加载六十四卦数据"""
@@ -678,6 +681,12 @@ class SuanguaPlugin(star.Star):
             divination_process=divination_process if self._show_divination_process else None
         )
         
+        # 缓存算卦结果（用于AI解卦时查找）
+        self._divination_cache[event.unified_msg_origin] = (
+            hexagram_name, hexagram_data, changed_name, changed_data, changing_positions
+        )
+        logger.debug(f"已缓存算卦结果: {hexagram_name}卦")
+        
         # 显示AI解卦提示（可配置）
         if self._show_ai_hint:
             result += "\n\n💡 引用此消息发送「AI解卦」可获取AI详细解读"
@@ -698,7 +707,7 @@ class SuanguaPlugin(star.Star):
         has_reply, reply_content, message_id = self._get_reply_content(event)
         logger.info(f"引用消息检测结果: has_reply={has_reply}, message_id={message_id}")
         
-        if not has_reply or not reply_content:
+        if not has_reply:
             event.set_result(MessageEventResult().message(
                 "请引用算卦结果后再发送「AI解卦」\n\n"
                 "📝 使用方法：\n"
@@ -708,38 +717,54 @@ class SuanguaPlugin(star.Star):
             ).use_t2i(False))
             return
         
-        # 从引用内容中提取卦名
-        match = re.search(r"【(.+?)卦】", reply_content)
-        if not match:
-            logger.warning("无法从引用内容中提取卦名")
-            event.set_result(MessageEventResult().message("无法识别引用的卦象，请引用正确的算卦结果").use_t2i(False))
-            return
-        
-        hexagram_name = match.group(1)
-        logger.info(f"提取到卦名: {hexagram_name}")
-        
-        if hexagram_name not in self._hexagrams:
-            event.set_result(MessageEventResult().message(f"未找到「{hexagram_name}」卦").use_t2i(False))
-            return
-        
-        hexagram_data = self._hexagrams[hexagram_name]
-        
-        # 检查是否有变卦
+        # 初始化变量
+        hexagram_name = None
+        hexagram_data = None
         changed_name = None
         changed_data = None
         changing_positions = []
-        change_match = re.search(r"【变卦：(.+?)卦】", reply_content)
-        if change_match:
-            changed_name = change_match.group(1)
-            if changed_name in self._hexagrams:
-                changed_data = self._hexagrams[changed_name]
-                # 尝试从引用内容中提取变爻位置
-                yao_match = re.search(r"变爻：(.+?)(?:\n|$)", reply_content)
-                if yao_match:
-                    yao_str = yao_match.group(1)
-                    for i, name in enumerate(YAO_NAMES):
-                        if name in yao_str:
-                            changing_positions.append(i)
+        
+        # 方法1：从缓存获取（优先）
+        cached = self._divination_cache.get(event.unified_msg_origin)
+        if cached:
+            hexagram_name, hexagram_data, changed_name, changed_data, changing_positions = cached
+            logger.info(f"从缓存获取算卦结果: {hexagram_name}卦")
+        
+        # 方法2：从引用内容中解析（缓存未命中时）
+        if not hexagram_name and reply_content:
+            match = re.search(r"【(.+?)卦】", reply_content)
+            if match:
+                hexagram_name = match.group(1)
+                logger.info(f"从引用内容提取卦名: {hexagram_name}")
+                
+                if hexagram_name in self._hexagrams:
+                    hexagram_data = self._hexagrams[hexagram_name]
+                    
+                    # 检查是否有变卦
+                    change_match = re.search(r"【变卦：(.+?)卦】", reply_content)
+                    if change_match:
+                        changed_name = change_match.group(1)
+                        if changed_name in self._hexagrams:
+                            changed_data = self._hexagrams[changed_name]
+                    
+                    # 尝试从引用内容中提取变爻位置
+                    yao_match = re.search(r"变爻：(.+?)(?:\n|$)", reply_content)
+                    if yao_match:
+                        yao_str = yao_match.group(1)
+                        for i, name in enumerate(YAO_NAMES):
+                            if name in yao_str:
+                                changing_positions.append(i)
+        
+        # 无法获取卦象信息
+        if not hexagram_name or not hexagram_data:
+            logger.warning("无法获取卦象信息")
+            event.set_result(MessageEventResult().message(
+                "无法识别引用的卦象\n\n"
+                "💡 请尝试：\n"
+                "1. 直接发送「算卦」重新起卦\n"
+                "2. 引用新的算卦结果后再发送「AI解卦」"
+            ).use_t2i(False))
+            return
         
         # 先发送等待提示
         waiting_msg = self._ai_waiting_message.replace("{卦名}", hexagram_name)
