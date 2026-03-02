@@ -500,7 +500,8 @@ class SuanguaPlugin(star.Star):
         hexagram_data: dict,
         changed_name: Optional[str] = None,
         changed_data: Optional[dict] = None,
-        changing_positions: Optional[list[int]] = None
+        changing_positions: Optional[list[int]] = None,
+        use_t2i: bool = True
     ) -> str:
         """调用 AI 进行解卦（使用当前会话的人格）
         
@@ -511,6 +512,7 @@ class SuanguaPlugin(star.Star):
             changed_name: 变卦名
             changed_data: 变卦数据
             changing_positions: 变爻位置
+            use_t2i: 是否使用T2I（禁用时同时要求AI不使用Markdown）
         
         Returns:
             AI 解卦结果
@@ -564,6 +566,10 @@ class SuanguaPlugin(star.Star):
 请结合本卦和变卦进行综合解卦，说明事物的发展变化。"""
 
         user_prompt += "\n\n请提供详细的解卦分析，用通俗易懂的语言，给出积极正面的指引。"
+        
+        # 如果禁用T2I，要求AI不使用Markdown语法
+        if not use_t2i:
+            user_prompt += "\n\n【重要】请使用纯文本格式输出，不要使用任何Markdown语法（如**粗体**、#标题、```代码块等），直接用普通文字表达即可。"
         
         # 如果有人格系统提示词，使用人格的；否则使用默认的
         if persona_system_prompt:
@@ -722,8 +728,10 @@ class SuanguaPlugin(star.Star):
         # 先发送等待提示
         await event.send(event.plain_result(f"正在为您AI解卦【{hexagram_name}卦】，请稍候..."))
         
+        use_t2i = self._ai_divine_use_t2i
         ai_result = await self._get_ai_interpretation(
-            event, hexagram_name, hexagram_data, changed_name, changed_data, changing_positions
+            event, hexagram_name, hexagram_data, changed_name, changed_data, changing_positions,
+            use_t2i=use_t2i
         )
         
         hexagram_display = get_hexagram_display(hexagram_data)
@@ -736,8 +744,6 @@ class SuanguaPlugin(star.Star):
         
         result += f"\n{ai_result}"
         
-        # 根据配置决定是否使用 t2i
-        use_t2i = self._ai_divine_use_t2i
         event.set_result(MessageEventResult().message(result).use_t2i(use_t2i))
     
     @filter.command("算卦帮助", alias={"卦帮助", "帮助算卦"})

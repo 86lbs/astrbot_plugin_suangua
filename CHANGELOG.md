@@ -4,6 +4,14 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)。
 
+## [v4.4.3] - 2026-03-02
+
+### 优化
+- AI解卦禁用T2I时，在提示词中要求AI不使用Markdown语法
+- 避免纯文本输出时出现Markdown渲染问题
+
+---
+
 ## [v4.4.2] - 2026-03-02
 
 ### 修复
