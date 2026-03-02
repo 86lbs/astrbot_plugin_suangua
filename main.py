@@ -232,13 +232,30 @@ class SuanguaPlugin(star.Star):
         self._ai_divine_use_t2i = True
         self._ai_waiting_message = "正在为您AI解卦【{卦名}卦】，请稍候..."
         self._show_ai_hint = True
-        # 算卦结果缓存：key=unified_msg_origin, value=(timestamp, hexagram_name, hexagram_data, changed_name, changed_data, changing_positions)
+        # 算卦结果缓存：key="{unified_msg_origin}_{sender_id}", value=(timestamp, hexagram_name, hexagram_data, changed_name, changed_data, changing_positions)
         # 缓存有效期：10分钟，最大容量：1000
+        # 使用 sender_id 区分同一群聊中不同用户的卦象
         self._divination_cache: dict[str, tuple] = {}
         self._cache_expire_seconds = 600  # 10分钟
         self._max_cache_size = 1000  # 最大缓存条数
         # 用户输入长度限制
         self._max_question_length = 500  # 最大问题长度（字符）
+    
+    def _get_cache_key(self, event: AstrMessageEvent) -> str:
+        """生成缓存键，区分同一群聊中不同用户
+        
+        Args:
+            event: 消息事件
+            
+        Returns:
+            缓存键，格式为 "{unified_msg_origin}_{sender_id}"
+        """
+        sender_id = ""
+        try:
+            sender_id = event.get_sender_id() or ""
+        except Exception:
+            pass
+        return f"{event.unified_msg_origin}_{sender_id}"
     
     def _load_hexagrams(self) -> bool:
         """加载六十四卦数据"""
@@ -766,11 +783,13 @@ class SuanguaPlugin(star.Star):
         
         # 缓存算卦结果（用于AI解卦时查找），包含时间戳
         # 写入时顺带清理过期缓存
+        # 使用 "{unified_msg_origin}_{sender_id}" 作为键，区分同一群聊中不同用户
         self._cleanup_expired_cache()
-        self._divination_cache[event.unified_msg_origin] = (
+        cache_key = self._get_cache_key(event)
+        self._divination_cache[cache_key] = (
             time.time(), hexagram_name, hexagram_data, changed_name, changed_data, changing_positions
         )
-        logger.debug(f"已缓存算卦结果: {hexagram_name}卦")
+        logger.debug(f"已缓存算卦结果: {hexagram_name}卦 (key={cache_key})")
         
         # 显示AI解卦提示（可配置）
         if self._show_ai_hint:
@@ -858,9 +877,11 @@ class SuanguaPlugin(star.Star):
                             if name in yao_str:
                                 changing_positions.append(i)
         
-        # 方法2：从缓存获取（仅当引用消息ID匹配时）
-        if (not hexagram_name or not hexagram_data) and message_id:
-            cached = self._divination_cache.get(message_id)
+        # 方法2：从缓存获取（引用内容解析失败时的回退）
+        # 使用当前用户的缓存键，确保同一用户获取自己的卦象
+        if not hexagram_name or not hexagram_data:
+            cache_key = self._get_cache_key(event)
+            cached = self._divination_cache.get(cache_key)
             if cached:
                 cache_time, hexagram_name, hexagram_data, changed_name, changed_data, changing_positions = cached
                 elapsed = time.time() - cache_time
@@ -873,7 +894,7 @@ class SuanguaPlugin(star.Star):
                     changed_data = None
                     changing_positions = []
                     # 清除过期缓存
-                    del self._divination_cache[message_id]
+                    del self._divination_cache[cache_key]
                 else:
                     logger.info(f"从缓存获取算卦结果: {hexagram_name}卦（剩余{self._cache_expire_seconds - elapsed:.0f}秒）")
         

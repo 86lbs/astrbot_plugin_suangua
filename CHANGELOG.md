@@ -4,6 +4,36 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)。
 
+## [v4.11.0] - 2026-03-02
+
+### 修复（四审反馈 - 严重Bug）
+
+1. **缓存键值存取不一致**
+   - 存储使用 `unified_msg_origin`，读取使用 `message_id`
+   - 导致 Fallback 机制 100% 无法命中缓存
+   - 修复：统一使用 `_get_cache_key(event)` 方法
+
+2. **群聊并发缓存覆盖**
+   - 同一群聊中不同用户的卦象会互相覆盖
+   - 修复：缓存键改为 `{unified_msg_origin}_{sender_id}`
+   - 使用 `event.get_sender_id()` 区分用户
+
+### 技术细节
+
+```python
+# 新增方法
+def _get_cache_key(self, event: AstrMessageEvent) -> str:
+    sender_id = event.get_sender_id() or ""
+    return f"{event.unified_msg_origin}_{sender_id}"
+
+# 存储和读取都使用统一键
+cache_key = self._get_cache_key(event)
+self._divination_cache[cache_key] = (...)
+cached = self._divination_cache.get(cache_key)
+```
+
+---
+
 ## [v4.10.0] - 2026-03-02
 
 ### 修复（四审反馈）
