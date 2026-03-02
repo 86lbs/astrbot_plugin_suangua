@@ -8,6 +8,7 @@ import asyncio
 import json
 import random
 import re
+import time
 from pathlib import Path
 from typing import Optional
 
@@ -231,9 +232,10 @@ class SuanguaPlugin(star.Star):
         self._ai_divine_use_t2i = True
         self._ai_waiting_message = "正在为您AI解卦【{卦名}卦】，请稍候..."
         self._show_ai_hint = True
-        # 算卦结果缓存：key=unified_msg_origin, value=最近一次算卦结果
-        # 结构: (hexagram_name, hexagram_data, changed_name, changed_data, changing_positions)
+        # 算卦结果缓存：key=unified_msg_origin, value=(timestamp, hexagram_name, hexagram_data, changed_name, changed_data, changing_positions)
+        # 缓存有效期：10分钟
         self._divination_cache: dict[str, tuple] = {}
+        self._cache_expire_seconds = 600  # 10分钟
     
     def _load_hexagrams(self) -> bool:
         """加载六十四卦数据"""
@@ -681,15 +683,15 @@ class SuanguaPlugin(star.Star):
             divination_process=divination_process if self._show_divination_process else None
         )
         
-        # 缓存算卦结果（用于AI解卦时查找）
+        # 缓存算卦结果（用于AI解卦时查找），包含时间戳
         self._divination_cache[event.unified_msg_origin] = (
-            hexagram_name, hexagram_data, changed_name, changed_data, changing_positions
+            time.time(), hexagram_name, hexagram_data, changed_name, changed_data, changing_positions
         )
         logger.debug(f"已缓存算卦结果: {hexagram_name}卦")
         
         # 显示AI解卦提示（可配置）
         if self._show_ai_hint:
-            result += "\n\n💡 引用此消息发送「AI解卦」可获取AI详细解读"
+            result += "\n\n💡 引用此消息发送「AI解卦」可获取AI详细解读（10分钟内有效）"
         
         event.set_result(MessageEventResult().message(result).use_t2i(False))
     
@@ -724,11 +726,23 @@ class SuanguaPlugin(star.Star):
         changed_data = None
         changing_positions = []
         
-        # 方法1：从缓存获取（优先）
+        # 方法1：从缓存获取（优先），检查是否过期
         cached = self._divination_cache.get(event.unified_msg_origin)
         if cached:
-            hexagram_name, hexagram_data, changed_name, changed_data, changing_positions = cached
-            logger.info(f"从缓存获取算卦结果: {hexagram_name}卦")
+            cache_time, hexagram_name, hexagram_data, changed_name, changed_data, changing_positions = cached
+            elapsed = time.time() - cache_time
+            if elapsed > self._cache_expire_seconds:
+                # 缓存已过期
+                logger.info(f"缓存已过期: {elapsed:.0f}秒")
+                hexagram_name = None
+                hexagram_data = None
+                changed_name = None
+                changed_data = None
+                changing_positions = []
+                # 清除过期缓存
+                del self._divination_cache[event.unified_msg_origin]
+            else:
+                logger.info(f"从缓存获取算卦结果: {hexagram_name}卦（剩余{self._cache_expire_seconds - elapsed:.0f}秒）")
         
         # 方法2：从引用内容中解析（缓存未命中时）
         if not hexagram_name and reply_content:
