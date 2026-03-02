@@ -668,6 +668,18 @@ class SuanguaPlugin(star.Star):
                 event.set_result(MessageEventResult().message("卦象数据加载失败，请联系管理员检查插件配置。").use_t2i(False))
                 return
         
+        # 尝试从引用消息中提取问题
+        question = ""
+        has_reply, reply_content, _ = self._get_reply_content(event)
+        if has_reply:
+            if reply_content and reply_content.strip():
+                # 引用了文本消息，提取作为问题
+                question = reply_content.strip()
+                logger.info(f"从引用消息提取问题: {question[:50]}...")
+            else:
+                # 引用了非文本内容（图片/视频/表情包等）
+                logger.info("引用了非文本内容，无法提取问题")
+        
         try:
             (hexagram_name, hexagram_data, changing_positions,
              changed_name, changed_data, divination_process) = \
@@ -680,6 +692,7 @@ class SuanguaPlugin(star.Star):
         result = self._build_divination_result(
             hexagram_name, hexagram_data, changing_positions,
             changed_name, changed_data,
+            question=question,
             divination_process=divination_process if self._show_divination_process else None
         )
         
