@@ -3,48 +3,48 @@
     "name": "启用变卦",
     "hint": "开启后可能产生变爻，显示本卦和变卦",
     "type": "bool",
-    "value": true
+    "default": true
   },
   "show_divination_process": {
     "name": "显示起卦过程",
     "hint": "显示每次抛掷铜钱的结果",
     "type": "bool",
-    "value": false
+    "default": false
   },
   "show_yao_ci": {
     "name": "显示爻辞",
     "hint": "在卦象结果中显示爻辞",
     "type": "bool",
-    "value": true
+    "default": true
   },
   "show_fortune_guide": {
     "name": "显示运势指引",
     "hint": "在卦象结果中显示运势指引",
     "type": "bool",
-    "value": true
+    "default": true
   },
   "ai_divine_use_t2i": {
     "name": "AI解卦使用T2I",
     "hint": "AI解卦结果转图片显示",
     "type": "bool",
-    "value": true
+    "default": true
   },
   "ai_default_prompt": {
     "name": "AI解卦默认提示词",
     "hint": "未设置人格时的系统提示词",
     "type": "string",
-    "value": "你是一位精通易经的算命大师，擅长用通俗易懂的语言为人们解卦指引。"
+    "default": "你是一位精通易经的算命大师，擅长用通俗易懂的语言为人们解卦指引。"
   },
   "ai_waiting_message": {
     "name": "AI解卦等待提示",
     "hint": "等待提示语，{卦名}会被替换",
     "type": "string",
-    "value": "正在为您AI解卦【{卦名}卦】，请稍候..."
+    "default": "正在为您AI解卦【{卦名}卦】，请稍候..."
   },
   "show_ai_hint": {
     "name": "显示AI解卦提示",
     "hint": "在算卦结果末尾显示AI解卦提示",
     "type": "bool",
-    "value": true
+    "default": true
   }
 }
