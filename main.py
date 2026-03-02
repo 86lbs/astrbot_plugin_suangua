@@ -226,7 +226,12 @@ class SuanguaPlugin(star.Star):
         # 配置项（带默认值）
         self._enable_changing = True
         self._show_divination_process = False
+        self._show_yao_ci = True
+        self._show_fortune_guide = True
         self._ai_divine_use_t2i = True
+        self._ai_default_prompt = "你是一位精通易经的算命大师，擅长用通俗易懂的语言为人们解卦指引。"
+        self._ai_waiting_message = "正在为您AI解卦【{卦名}卦】，请稍候..."
+        self._show_ai_hint = True
     
     def _load_hexagrams(self) -> bool:
         """加载六十四卦数据"""
@@ -262,8 +267,15 @@ class SuanguaPlugin(star.Star):
             try:
                 self._enable_changing = self._config.get("enable_changing", True)
                 self._show_divination_process = self._config.get("show_divination_process", False)
+                self._show_yao_ci = self._config.get("show_yao_ci", True)
+                self._show_fortune_guide = self._config.get("show_fortune_guide", True)
                 self._ai_divine_use_t2i = self._config.get("ai_divine_use_t2i", True)
-                logger.info(f"算卦插件配置：变卦={'开启' if self._enable_changing else '关闭'}，AI解卦T2I={'开启' if self._ai_divine_use_t2i else '关闭'}")
+                self._ai_default_prompt = self._config.get("ai_default_prompt", 
+                    "你是一位精通易经的算命大师，擅长用通俗易懂的语言为人们解卦指引。")
+                self._ai_waiting_message = self._config.get("ai_waiting_message", 
+                    "正在为您AI解卦【{卦名}卦】，请稍候...")
+                self._show_ai_hint = self._config.get("show_ai_hint", True)
+                logger.info(f"算卦插件配置已加载")
             except Exception as e:
                 logger.warning(f"读取插件配置失败，使用默认值: {e}")
     
@@ -376,22 +388,23 @@ class SuanguaPlugin(star.Star):
         lines.append(f"卦性：{hexagram_data.get('性质', '未知')}")
         lines.append(f"含义：{hexagram_data.get('含义', '未知')}")
         
-        # 爻辞
-        yao_ci_list = hexagram_data.get('爻辞', [])
-        if yao_ci_list:
-            if changing_positions:
-                yao_texts = []
-                for pos in changing_positions:
-                    if pos < len(yao_ci_list):
-                        yao_texts.append(f"{YAO_NAMES[pos]}：{yao_ci_list[pos]}")
-                if yao_texts:
-                    lines.append("动爻爻辞：")
-                    for yt in yao_texts:
-                        lines.append(f"  {yt}")
+        # 爻辞（可配置是否显示）
+        if self._show_yao_ci:
+            yao_ci_list = hexagram_data.get('爻辞', [])
+            if yao_ci_list:
+                if changing_positions:
+                    yao_texts = []
+                    for pos in changing_positions:
+                        if pos < len(yao_ci_list):
+                            yao_texts.append(f"{YAO_NAMES[pos]}：{yao_ci_list[pos]}")
+                    if yao_texts:
+                        lines.append("动爻爻辞：")
+                        for yt in yao_texts:
+                            lines.append(f"  {yt}")
+                    else:
+                        lines.append(f"爻辞：{random.choice(yao_ci_list)}")
                 else:
                     lines.append(f"爻辞：{random.choice(yao_ci_list)}")
-            else:
-                lines.append(f"爻辞：{random.choice(yao_ci_list)}")
         
         # 变卦信息
         if changed_hexagram_name and changed_hexagram_data:
@@ -407,19 +420,20 @@ class SuanguaPlugin(star.Star):
                 yao_names = [YAO_NAMES[pos] for pos in changing_positions]
                 lines.append(f"变爻：{'、'.join(yao_names)}")
         
-        # 运势指引
-        interpretations = [
-            "当前运势稳中有进，宜保持耐心。",
-            "事业方面：脚踏实地，稳扎稳打。",
-            "感情方面：真诚待人，缘分自来。",
-            "财运方面：量入为出，积少成多。",
-            "健康方面：劳逸结合，注意休息。"
-        ]
-        
-        lines.append("")
-        lines.append("运势指引：")
-        for interp in random.sample(interpretations, min(3, len(interpretations))):
-            lines.append(f"  • {interp}")
+        # 运势指引（可配置是否显示）
+        if self._show_fortune_guide:
+            interpretations = [
+                "当前运势稳中有进，宜保持耐心。",
+                "事业方面：脚踏实地，稳扎稳打。",
+                "感情方面：真诚待人，缘分自来。",
+                "财运方面：量入为出，积少成多。",
+                "健康方面：劳逸结合，注意休息。"
+            ]
+            
+            lines.append("")
+            lines.append("运势指引：")
+            for interp in random.sample(interpretations, min(3, len(interpretations))):
+                lines.append(f"  • {interp}")
         
         result = "\n".join(lines)
         
@@ -575,7 +589,7 @@ class SuanguaPlugin(star.Star):
         if persona_system_prompt:
             system_prompt = persona_system_prompt
         else:
-            system_prompt = "你是一位精通易经的算命大师，擅长用通俗易懂的语言为人们解卦指引。"
+            system_prompt = self._ai_default_prompt
         
         try:
             llm_resp = await provider.text_chat(
@@ -664,7 +678,10 @@ class SuanguaPlugin(star.Star):
             changed_name, changed_data,
             divination_process=divination_process if self._show_divination_process else None
         )
-        result += "\n\n💡 引用此消息发送「AI解卦」可获取AI详细解读"
+        
+        # 显示AI解卦提示（可配置）
+        if self._show_ai_hint:
+            result += "\n\n💡 引用此消息发送「AI解卦」可获取AI详细解读"
         
         event.set_result(MessageEventResult().message(result).use_t2i(False))
     
@@ -726,7 +743,8 @@ class SuanguaPlugin(star.Star):
                             changing_positions.append(i)
         
         # 先发送等待提示
-        await event.send(event.plain_result(f"正在为您AI解卦【{hexagram_name}卦】，请稍候..."))
+        waiting_msg = self._ai_waiting_message.replace("{卦名}", hexagram_name)
+        await event.send(event.plain_result(waiting_msg))
         
         use_t2i = self._ai_divine_use_t2i
         ai_result = await self._get_ai_interpretation(

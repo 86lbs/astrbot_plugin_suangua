@@ -7,13 +7,43 @@
   },
   "show_divination_process": {
     "name": "显示起卦过程",
-    "description": "是否显示每次抛掷铜钱的结果。",
+    "description": "是否显示每次抛掷铜钱的结果（老阴、少阳等）。",
     "type": "bool",
     "value": false
   },
+  "show_yao_ci": {
+    "name": "显示爻辞",
+    "description": "是否在卦象结果中显示爻辞。",
+    "type": "bool",
+    "value": true
+  },
+  "show_fortune_guide": {
+    "name": "显示运势指引",
+    "description": "是否在卦象结果中显示运势指引。",
+    "type": "bool",
+    "value": true
+  },
   "ai_divine_use_t2i": {
     "name": "AI解卦使用T2I",
-    "description": "AI解卦结果是否使用文本转图片功能。开启后会将AI解卦结果转换为图片显示。",
+    "description": "AI解卦结果是否使用文本转图片功能。关闭后将以纯文本形式输出。",
+    "type": "bool",
+    "value": true
+  },
+  "ai_default_prompt": {
+    "name": "AI解卦默认提示词",
+    "description": "当会话未设置人格时，AI解卦使用的系统提示词。",
+    "type": "string",
+    "value": "你是一位精通易经的算命大师，擅长用通俗易懂的语言为人们解卦指引。"
+  },
+  "ai_waiting_message": {
+    "name": "AI解卦等待提示",
+    "description": "AI解卦时显示的等待提示语，{卦名}会被替换为实际卦名。",
+    "type": "string",
+    "value": "正在为您AI解卦【{卦名}卦】，请稍候..."
+  },
+  "show_ai_hint": {
+    "name": "显示AI解卦提示",
+    "description": "是否在算卦结果末尾显示「引用此消息发送AI解卦」的提示。",
     "type": "bool",
     "value": true
   }
