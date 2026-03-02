@@ -750,6 +750,23 @@ class SuanguaPlugin(star.Star):
         """AI解卦 - 引用算卦结果进行AI解卦（使用当前会话人格）"""
         logger.info("收到AI解卦请求")
         
+        # 先检测 LLM 是否可用
+        try:
+            provider = self.context.get_using_provider(umo=event.unified_msg_origin)
+            if not provider:
+                event.set_result(MessageEventResult().message(
+                    "⚠️ AI解卦功能需要配置大语言模型\n\n"
+                    "请在管理面板中配置 LLM 服务提供商后重试。"
+                ).use_t2i(False))
+                return
+        except Exception as e:
+            logger.error(f"获取 provider 失败: {e}")
+            event.set_result(MessageEventResult().message(
+                "⚠️ AI解卦功能需要配置大语言模型\n\n"
+                "请在管理面板中配置 LLM 服务提供商后重试。"
+            ).use_t2i(False))
+            return
+        
         # 统一懒加载路径
         if not self._hexagrams:
             if not self._load_hexagrams():
