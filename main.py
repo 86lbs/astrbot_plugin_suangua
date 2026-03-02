@@ -738,7 +738,7 @@ class SuanguaPlugin(star.Star):
         
         # 根据配置决定是否使用 t2i
         use_t2i = self._ai_divine_use_t2i
-        event.set_result(MessageEventResult().message(result).use_t2i(use_t2i).use_markdown(use_t2i))
+        event.set_result(MessageEventResult().message(result).use_t2i(use_t2i))
     
     @filter.command("算卦帮助", alias={"卦帮助", "帮助算卦"})
     async def help_info(self, event: AstrMessageEvent) -> None:

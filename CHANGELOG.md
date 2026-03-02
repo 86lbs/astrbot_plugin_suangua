@@ -4,6 +4,13 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)。
 
+## [v4.4.2] - 2026-03-02
+
+### 修复
+- 移除不支持的 `use_markdown` 方法调用，修复 AI解卦 报错
+
+---
+
 ## [v4.4.0] - 2026-03-01
 
 ### 新增
