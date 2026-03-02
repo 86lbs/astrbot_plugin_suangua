@@ -29,12 +29,6 @@
     "type": "bool",
     "default": true
   },
-  "ai_default_prompt": {
-    "name": "AI解卦默认提示词",
-    "hint": "未设置人格时的系统提示词",
-    "type": "string",
-    "default": "你是一位精通易经的算命大师，擅长用通俗易懂的语言为人们解卦指引。"
-  },
   "ai_waiting_message": {
     "name": "AI解卦等待提示",
     "hint": "等待提示语，{卦名}会被替换",

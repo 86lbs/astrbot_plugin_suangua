@@ -229,7 +229,6 @@ class SuanguaPlugin(star.Star):
         self._show_yao_ci = True
         self._show_fortune_guide = True
         self._ai_divine_use_t2i = True
-        self._ai_default_prompt = "你是一位精通易经的算命大师，擅长用通俗易懂的语言为人们解卦指引。"
         self._ai_waiting_message = "正在为您AI解卦【{卦名}卦】，请稍候..."
         self._show_ai_hint = True
     
@@ -270,8 +269,6 @@ class SuanguaPlugin(star.Star):
                 self._show_yao_ci = self._config.get("show_yao_ci", True)
                 self._show_fortune_guide = self._config.get("show_fortune_guide", True)
                 self._ai_divine_use_t2i = self._config.get("ai_divine_use_t2i", True)
-                self._ai_default_prompt = self._config.get("ai_default_prompt", 
-                    "你是一位精通易经的算命大师，擅长用通俗易懂的语言为人们解卦指引。")
                 self._ai_waiting_message = self._config.get("ai_waiting_message", 
                     "正在为您AI解卦【{卦名}卦】，请稍候...")
                 self._show_ai_hint = self._config.get("show_ai_hint", True)
@@ -585,11 +582,13 @@ class SuanguaPlugin(star.Star):
         if not use_t2i:
             user_prompt += "\n\n【重要】请使用纯文本格式输出，不要使用任何Markdown语法（如**粗体**、#标题、```代码块等），直接用普通文字表达即可。"
         
-        # 如果有人格系统提示词，使用人格的；否则使用默认的
+        # 如果有人格系统提示词，使用人格的；否则使用内置默认提示词
         if persona_system_prompt:
             system_prompt = persona_system_prompt
+            logger.info(f"AI解卦使用人格提示词")
         else:
-            system_prompt = self._ai_default_prompt
+            system_prompt = "你是一位精通易经的算命大师，擅长用通俗易懂的语言为人们解卦指引。"
+            logger.info("AI解卦使用默认提示词")
         
         try:
             llm_resp = await provider.text_chat(
