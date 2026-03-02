@@ -4,6 +4,33 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)。
 
+## [v4.10.0] - 2026-03-02
+
+### 修复（四审反馈）
+
+1. **卦名提取正则更严格**
+   - 排除 `【乾卦 · AI解卦】` 等干扰格式
+   - 使用 `【([^】·]+?)卦】` 正则
+
+2. **缓存绑定消息ID**
+   - 缓存使用 `message_id` 而非 `unified_msg_origin`
+   - 避免群聊高频场景下卦象串线
+
+3. **缓存上限控制**
+   - 添加 `_max_cache_size = 1000`
+   - 超限时删除最旧的条目
+
+4. **输入长度限制**
+   - 添加 `_max_question_length = 500`
+   - 超限自动截断
+
+5. **异常处理细化**
+   - `_load_hexagrams`: 捕获 FileNotFoundError, JSONDecodeError, PermissionError
+   - `_load_config`: 捕获 KeyError, TypeError
+   - 使用 `logger.exception` 记录未知异常
+
+---
+
 ## [v4.9.1] - 2026-03-02
 
 ### 优化

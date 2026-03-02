@@ -233,9 +233,12 @@ class SuanguaPlugin(star.Star):
         self._ai_waiting_message = "正在为您AI解卦【{卦名}卦】，请稍候..."
         self._show_ai_hint = True
         # 算卦结果缓存：key=unified_msg_origin, value=(timestamp, hexagram_name, hexagram_data, changed_name, changed_data, changing_positions)
-        # 缓存有效期：10分钟
+        # 缓存有效期：10分钟，最大容量：1000
         self._divination_cache: dict[str, tuple] = {}
         self._cache_expire_seconds = 600  # 10分钟
+        self._max_cache_size = 1000  # 最大缓存条数
+        # 用户输入长度限制
+        self._max_question_length = 500  # 最大问题长度（字符）
     
     def _load_hexagrams(self) -> bool:
         """加载六十四卦数据"""
@@ -266,8 +269,17 @@ class SuanguaPlugin(star.Star):
             self._loaded = True
             return True
             
+        except FileNotFoundError as e:
+            logger.error(f"卦象数据文件不存在: {e}")
+            return False
+        except json.JSONDecodeError as e:
+            logger.error(f"卦象数据文件格式错误: {e}")
+            return False
+        except PermissionError as e:
+            logger.error(f"无权限读取卦象数据文件: {e}")
+            return False
         except Exception as e:
-            logger.error(f"加载卦象数据失败: {e}")
+            logger.exception(f"加载卦象数据失败: {e}")
             return False
     
     def _load_config(self) -> None:
@@ -283,8 +295,10 @@ class SuanguaPlugin(star.Star):
                     "正在为您AI解卦【{卦名}卦】，请稍候...")
                 self._show_ai_hint = self._config.get("show_ai_hint", True)
                 logger.info(f"算卦插件配置已加载")
-            except Exception as e:
+            except (KeyError, TypeError) as e:
                 logger.warning(f"读取插件配置失败，使用默认值: {e}")
+            except Exception as e:
+                logger.exception(f"读取插件配置发生未知错误: {e}")
     
     def _validate_mapping_consistency(self) -> bool:
         """验证卦象映射一致性
@@ -310,7 +324,7 @@ class SuanguaPlugin(star.Star):
         return True
     
     def _cleanup_expired_cache(self) -> int:
-        """清理过期的缓存项
+        """清理过期的缓存项，并检查容量上限
         
         Returns:
             清理的缓存项数量
@@ -322,9 +336,23 @@ class SuanguaPlugin(star.Star):
         ]
         for key in expired_keys:
             del self._divination_cache[key]
-        if expired_keys:
-            logger.debug(f"清理了 {len(expired_keys)} 个过期缓存")
-        return len(expired_keys)
+        
+        # 检查容量上限，如果超过则随机删除最旧的条目
+        if len(self._divination_cache) > self._max_cache_size:
+            # 按时间排序，删除最旧的条目
+            sorted_items = sorted(
+                self._divination_cache.items(),
+                key=lambda x: x[1][0]  # 按时间戳排序
+            )
+            items_to_remove = len(self._divination_cache) - self._max_cache_size
+            for key, _ in sorted_items[:items_to_remove]:
+                del self._divination_cache[key]
+            logger.debug(f"缓存超限，清理了 {items_to_remove} 个最旧条目")
+        
+        total_cleaned = len(expired_keys)
+        if total_cleaned:
+            logger.debug(f"清理了 {total_cleaned} 个过期缓存")
+        return total_cleaned
     
     async def initialize(self) -> None:
         """插件初始化"""
@@ -715,6 +743,11 @@ class SuanguaPlugin(star.Star):
                 final_question = reply_content.strip()
                 logger.info(f"从引用消息提取问题: {final_question[:50]}...")
         
+        # 输入长度限制
+        if len(final_question) > self._max_question_length:
+            final_question = final_question[:self._max_question_length] + "..."
+            logger.info(f"问题已截断至 {self._max_question_length} 字符")
+        
         try:
             (hexagram_name, hexagram_data, changing_positions,
              changed_name, changed_data, divination_process) = \
@@ -795,18 +828,25 @@ class SuanguaPlugin(star.Star):
         
         # 方法1：从引用内容中解析（优先）
         if reply_content:
-            match = re.search(r"【(.+?)卦】", reply_content)
+            # 使用更严格的正则，排除 "AI解卦" 等干扰
+            # 匹配格式：【乾卦】或【变卦：坤卦】，排除【乾卦 · AI解卦】
+            match = re.search(r"【([^】·]+?)卦】", reply_content)
             if match:
-                hexagram_name = match.group(1)
-                logger.info(f"从引用内容提取卦名: {hexagram_name}")
+                extracted_name = match.group(1).strip()
+                # 排除 "变卦：" 前缀
+                if extracted_name.startswith("变卦："):
+                    extracted_name = extracted_name[3:].strip()
                 
-                if hexagram_name in self._hexagrams:
+                # 验证卦名是否有效
+                if extracted_name in self._hexagrams:
+                    hexagram_name = extracted_name
+                    logger.info(f"从引用内容提取卦名: {hexagram_name}")
                     hexagram_data = self._hexagrams[hexagram_name]
                     
                     # 检查是否有变卦
-                    change_match = re.search(r"【变卦：(.+?)卦】", reply_content)
+                    change_match = re.search(r"【变卦：([^】·]+?)卦】", reply_content)
                     if change_match:
-                        changed_name = change_match.group(1)
+                        changed_name = change_match.group(1).strip()
                         if changed_name in self._hexagrams:
                             changed_data = self._hexagrams[changed_name]
                     
@@ -818,9 +858,9 @@ class SuanguaPlugin(star.Star):
                             if name in yao_str:
                                 changing_positions.append(i)
         
-        # 方法2：从缓存获取（引用内容解析失败时的回退）
-        if not hexagram_name or not hexagram_data:
-            cached = self._divination_cache.get(event.unified_msg_origin)
+        # 方法2：从缓存获取（仅当引用消息ID匹配时）
+        if (not hexagram_name or not hexagram_data) and message_id:
+            cached = self._divination_cache.get(message_id)
             if cached:
                 cache_time, hexagram_name, hexagram_data, changed_name, changed_data, changing_positions = cached
                 elapsed = time.time() - cache_time
@@ -833,7 +873,7 @@ class SuanguaPlugin(star.Star):
                     changed_data = None
                     changing_positions = []
                     # 清除过期缓存
-                    del self._divination_cache[event.unified_msg_origin]
+                    del self._divination_cache[message_id]
                 else:
                     logger.info(f"从缓存获取算卦结果: {hexagram_name}卦（剩余{self._cache_expire_seconds - elapsed:.0f}秒）")
         
