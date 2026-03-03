@@ -758,7 +758,7 @@ class SuanguaPlugin(star.Star):
         await self._do_divine(event, question)
     
     @filter.event_message_type(filter.EventMessageType.ALL)
-    async def divine_keyword(self, event: AstrMessageEvent) -> None:
+    async def divine_keyword(self, event: AstrMessageEvent, *args, **kwargs) -> None:
         """算卦 - 关键词触发（无唤醒词）
         
         支持格式：

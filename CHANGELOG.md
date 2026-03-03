@@ -4,6 +4,26 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)。
 
+## [v4.15.1] - 2026-03-03
+
+### 修复
+
+- **修复 `@filter.event_message_type` 参数不匹配问题**
+  - 添加 `*args, **kwargs` 接收额外参数
+  - 兼容 AstrBot v4.18.3 的调用方式
+
+### 问题
+
+```
+TypeError: SuanguaPlugin.divine_keyword() takes 2 positional arguments but 3 were given
+```
+
+### 原因
+
+`@filter.event_message_type` 装饰器在 AstrBot v4.18.3 中会传递额外参数。
+
+---
+
 ## [v4.15.0] - 2026-03-03
 
 ### 修复
