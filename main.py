@@ -768,15 +768,15 @@ class SuanguaPlugin(star.Star):
         """
         logger.info("收到算卦请求（正则触发，无唤醒词）")
         
-        # 从消息中提取问题
+        # 从消息中提取问题（装饰器已匹配，直接提取即可）
         message = event.get_message_str().strip()
         question = ""
         
-        # 匹配 "算卦 xxx" 或 "算一卦 xxx"
-        import re
-        match = re.match(r"^算(?:一)?卦\s*(.*)$", message)
-        if match:
-            question = match.group(1).strip()
+        # 简单提取：去掉 "算卦" 或 "算一卦" 前缀
+        if message.startswith("算一卦"):
+            question = message[3:].strip()
+        elif message.startswith("算卦"):
+            question = message[2:].strip()
         
         await self._do_divine(event, question)
     
