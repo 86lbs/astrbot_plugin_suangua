@@ -4,6 +4,32 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)。
 
+## [v4.14.0] - 2026-03-03
+
+### 修复
+
+- **修复无唤醒词无法触发的问题**
+  - 改用 `@filter.event_message_type` 监听所有消息
+  - 自己判断是否包含"算卦"或"算一卦"关键词
+  - 避免与 `@filter.command` 冲突
+
+### 技术实现
+
+- 使用 `@filter.event_message_type(filter.EventMessageType.ALL)` 监听所有消息
+- 检查消息是否以"算卦"或"算一卦"开头
+- 检查是否有唤醒词前缀（如 `/`），有则跳过
+- 参考 zssm_explain 插件的实现方式
+
+### 触发方式
+
+| 方式 | 示例 | 说明 |
+|------|------|------|
+| 有唤醒词 | `/算卦` | 使用 `@filter.command` |
+| 无唤醒词 | `算卦` | 使用 `@filter.event_message_type` |
+| 带问题 | `算卦 今天运势` | 两种方式都支持 |
+
+---
+
 ## [v4.13.1] - 2026-03-03
 
 ### 修复（四审反馈 - 代码质量）

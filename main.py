@@ -756,23 +756,34 @@ class SuanguaPlugin(star.Star):
         logger.info("收到算卦请求（指令触发）")
         await self._do_divine(event, question)
     
-    @filter.regex(r"^算卦\s*(.*)$|^算一卦\s*(.*)$")
-    async def divine_regex(self, event: AstrMessageEvent) -> None:
-        """算卦 - 无唤醒词触发（正则匹配）
+    @filter.event_message_type(filter.EventMessageType.ALL)
+    async def divine_keyword(self, event: AstrMessageEvent) -> None:
+        """算卦 - 关键词触发（无唤醒词）
         
         支持格式：
         - 算卦
         - 算卦 问题内容
         - 算一卦
         - 算一卦 问题内容
+        
+        注意：如果消息以唤醒词开头（如 /算卦），则由 @filter.command 处理
         """
-        logger.info("收到算卦请求（正则触发，无唤醒词）")
-        
-        # 从消息中提取问题（装饰器已匹配，直接提取即可）
+        # 获取消息文本
         message = event.get_message_str().strip()
-        question = ""
         
-        # 简单提取：去掉 "算卦" 或 "算一卦" 前缀
+        # 检查是否以"算卦"或"算一卦"开头
+        if not (message.startswith("算卦") or message.startswith("算一卦")):
+            return
+        
+        # 如果消息以唤醒词开头（如 /算卦），则跳过，由 @filter.command 处理
+        # 检查是否有指令前缀符号 (如 / ! . 等)
+        if re.match(r'^\s*[/!！。\.、，\-]+', message):
+            return
+        
+        logger.info("收到算卦请求（关键词触发，无唤醒词）")
+        
+        # 提取问题
+        question = ""
         if message.startswith("算一卦"):
             question = message[3:].strip()
         elif message.startswith("算卦"):
