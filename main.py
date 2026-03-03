@@ -753,7 +753,41 @@ class SuanguaPlugin(star.Star):
             event: 消息事件
             question: 求卦问题（命令后跟随的文本）
         """
-        logger.info("收到算卦请求")
+        logger.info("收到算卦请求（指令触发）")
+        await self._do_divine(event, question)
+    
+    @filter.regex(r"^算卦\s*(.*)$|^算一卦\s*(.*)$")
+    async def divine_regex(self, event: AstrMessageEvent) -> None:
+        """算卦 - 无唤醒词触发（正则匹配）
+        
+        支持格式：
+        - 算卦
+        - 算卦 问题内容
+        - 算一卦
+        - 算一卦 问题内容
+        """
+        logger.info("收到算卦请求（正则触发，无唤醒词）")
+        
+        # 从消息中提取问题
+        message = event.get_message_str().strip()
+        question = ""
+        
+        # 匹配 "算卦 xxx" 或 "算一卦 xxx"
+        import re
+        match = re.match(r"^算(?:一)?卦\s*(.*)$", message)
+        if match:
+            question = match.group(1).strip()
+        
+        await self._do_divine(event, question)
+    
+    async def _do_divine(self, event: AstrMessageEvent, question: str = "") -> None:
+        """执行算卦的核心逻辑
+        
+        Args:
+            event: 消息事件
+            question: 求卦问题
+        """
+        logger.info("开始执行算卦")
         
         if not self._hexagrams:
             if not self._load_hexagrams():
