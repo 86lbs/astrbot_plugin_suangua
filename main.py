@@ -740,6 +740,7 @@ class SuanguaPlugin(star.Star):
         )
         
         result += "\n\n---\n请在回复中完整展示以上卦象结果，然后进行详细的解卦分析。"
+        result += "\n\n【重要】请使用纯文本格式输出，不要使用任何Markdown语法（如**粗体**、#标题、```代码块等），直接用普通文字表达即可。"
         
         return result
     
