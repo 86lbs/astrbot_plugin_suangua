@@ -19,21 +19,27 @@ from astrbot.api.star import Context
 from astrbot.core.config.astrbot_config import AstrBotConfig
 
 
-# 常量定义
+# ==================== 常量定义 ====================
+
+# 爻相关常量
 YAO_COUNT = 6  # 六爻
 YAO_NAMES = ["初爻", "二爻", "三爻", "四爻", "五爻", "上爻"]  # 从下到上
+
+# 线条常量（避免魔术字符串）
+YANG_LINE = "━━━"  # 阳爻
+YIN_LINE = "━ ━"   # 阴爻
 
 # 八卦线条映射（初爻→上爻顺序，即从下到上）
 # 索引0=初爻，索引1=二爻，索引2=三爻
 TRIGRAM_LINES: dict[str, list[str]] = {
-    "☰": ["━━━", "━━━", "━━━"],  # 乾：三阳
-    "☷": ["━ ━", "━ ━", "━ ━"],  # 坤：三阴
-    "☳": ["━━━", "━ ━", "━ ━"],  # 震：初阳二三阴（下阳上阴）
-    "☶": ["━ ━", "━ ━", "━━━"],  # 艮：初阴二阴三阳（下阴上阳）
-    "☲": ["━━━", "━ ━", "━━━"],  # 离：初阳中阴上阳
-    "☵": ["━ ━", "━━━", "━ ━"],  # 坎：初阴中阳上阴
-    "☱": ["━ ━", "━━━", "━━━"],  # 兑：初阴二阳三阳（下阴上阳）
-    "☴": ["━━━", "━━━", "━ ━"],  # 巽：初阳二阳三阴（下阳上阴）
+    "☰": [YANG_LINE, YANG_LINE, YANG_LINE],  # 乾：三阳
+    "☷": [YIN_LINE, YIN_LINE, YIN_LINE],      # 坤：三阴
+    "☳": [YANG_LINE, YIN_LINE, YIN_LINE],     # 震：初阳二三阴（下阳上阴）
+    "☶": [YIN_LINE, YIN_LINE, YANG_LINE],     # 艮：初阴二阴三阳（下阴上阳）
+    "☲": [YANG_LINE, YIN_LINE, YANG_LINE],    # 离：初阳中阴上阳
+    "☵": [YIN_LINE, YANG_LINE, YIN_LINE],     # 坎：初阴中阳上阴
+    "☱": [YIN_LINE, YANG_LINE, YANG_LINE],    # 兑：初阴二阳三阳（下阴上阳）
+    "☴": [YANG_LINE, YANG_LINE, YIN_LINE],    # 巽：初阳二阳三阴（下阳上阴）
 }
 
 # 程序化构造：线条到八卦符号的反向映射
@@ -45,12 +51,14 @@ for symbol, lines in TRIGRAM_LINES.items():
 
 # 金钱卦结果映射
 COIN_RESULT = {
-    6: {"name": "老阴", "line": "━ ━", "changing": True},
-    7: {"name": "少阳", "line": "━━━", "changing": False},
-    8: {"name": "少阴", "line": "━ ━", "changing": False},
-    9: {"name": "老阳", "line": "━━━", "changing": True},
+    6: {"name": "老阴", "line": YIN_LINE, "changing": True},
+    7: {"name": "少阳", "line": YANG_LINE, "changing": False},
+    8: {"name": "少阴", "line": YIN_LINE, "changing": False},
+    9: {"name": "老阳", "line": YANG_LINE, "changing": True},
 }
 
+
+# ==================== 辅助函数 ====================
 
 def get_hexagram_display(
     hexagram_data: dict, 
@@ -89,7 +97,7 @@ def get_hexagram_display(
         line_text = all_lines[i]
         if changing_positions and i in changing_positions:
             # 标记变爻：老阳变阴○，老阴变阳×
-            if "━━━" in line_text:
+            if YANG_LINE in line_text:
                 line_text += " ○"
             else:
                 line_text += " ×"
@@ -209,12 +217,14 @@ def apply_changing_yaos(lines: list[str], changing_positions: list[int]) -> list
     """
     new_lines = lines.copy()
     for pos in changing_positions:
-        if "━━━" in lines[pos]:
-            new_lines[pos] = "━ ━"  # 阳变阴
+        if YANG_LINE in lines[pos]:
+            new_lines[pos] = YIN_LINE   # 阳变阴
         else:
-            new_lines[pos] = "━━━"  # 阴变阳
+            new_lines[pos] = YANG_LINE  # 阴变阳
     return new_lines
 
+
+# ==================== 插件类 ====================
 
 class SuanguaPlugin(star.Star):
     """算卦插件 - 支持指令调用和 LLM 工具调用"""
