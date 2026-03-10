@@ -1046,38 +1046,188 @@ class SuanguaPlugin(star.Star):
         
         result += f"\n{ai_result}"
         
-        event.set_result(MessageEventResult().message(result).use_t2i(use_t2i))
-    
-    @filter.command("算卦帮助", alias={"卦帮助", "帮助算卦"})
+        event.set_result(MessageEventResult().message(result).use_t2i(use_t2i))    @filter.command("算卦设置", alias={"卦设置"})
+    async def settings(self, event: AstrMessageEvent, action: str = "", value: str = "") -> None:
+        """算卦插件设置
+        
+        Args:
+            action: 操作类型（查看/provider/persona/重置）
+            value: 设置值
+        """
+        action = action.strip().lower() if action else ""
+        value = value.strip() if value else ""
+        
+        if not action or action in ["查看", "view", "show", "列表", "list", ""]:
+            # 显示当前配置和可用选项
+            result = "【算卦插件设置】\n\n"
+            
+            # 当前配置
+            result += "📋 当前配置：\n"
+            result += f"  • LLM提供商：{self._ai_divine_provider_id or '（使用会话默认）'}\n"
+            result += f"  • 人格：{self._ai_divine_persona_name or '（使用会话默认）'}\n"
+            result += f"  • 默认提示词：{self._ai_divine_default_prompt[:30]}...\n\n"
+            
+            # 可用的 LLM 提供商
+            result += "🔧 可用的 LLM 提供商：\n"
+            try:
+                providers = self.context.provider_manager.provider_insts
+                if providers:
+                    for i, p in enumerate(providers, 1):
+                        provider_id = getattr(p, 'id', None) or getattr(p, 'provider_id', None) or str(p.__class__.__name__)
+                        model = getattr(p, 'model', None) or getattr(p, 'llm_model', None) or ''
+                        status = "✅" if self._ai_divine_provider_id == provider_id else "  "
+                        result += f"  {status} {i}. {provider_id}"
+                        if model:
+                            result += f" ({model})"
+                        result += "\n"
+                else:
+                    result += "  暂无已配置的 LLM 提供商\n"
+            except Exception as e:
+                result += f"  获取失败：{e}\n"
+            
+            result += "\n"
+            
+            # 可用的人格
+            result += "🎭 可用的人格：\n"
+            try:
+                personas = self.context.persona_manager.personas_v3
+                if personas:
+                    for i, p in enumerate(personas, 1):
+                        name = p.get('name', '未命名')
+                        status = "✅" if self._ai_divine_persona_name == name else "  "
+                        result += f"  {status} {i}. {name}\n"
+                else:
+                    result += "  暂无已创建的人格\n"
+            except Exception as e:
+                result += f"  获取失败：{e}\n"
+            
+            result += "\n📖 使用方法：\n"
+            result += "  [唤醒词]算卦设置 provider <ID>  - 设置LLM提供商\n"
+            result += "  [唤醒词]算卦设置 persona <名称> - 设置人格\n"
+            result += "  [唤醒词]算卦设置 重置           - 重置为默认配置\n"
+            result += "\n💡 提示：设置后立即生效，重启后恢复为配置文件中的值"
+            
+            event.set_result(MessageEventResult().message(result).use_t2i(False))
+        
+        elif action in ["provider", "llm", "模型"]:
+            if not value:
+                event.set_result(MessageEventResult().message(
+                    "请指定要设置的 LLM 提供商 ID\n\n"
+                    "使用「[唤醒词]算卦设置」查看可用列表"
+                ).use_t2i(False))
+                return
+            
+            # 验证 Provider 是否存在
+            try:
+                provider = await self.context.provider_manager.get_provider_by_id(value)
+                if provider:
+                    self._ai_divine_provider_id = value
+                    event.set_result(MessageEventResult().message(
+                        f"✅ 已设置 LLM 提供商：{value}\n\n"
+                        "💡 此设置为临时生效，重启后恢复为配置文件中的值"
+                    ).use_t2i(False))
+                else:
+                    event.set_result(MessageEventResult().message(
+                        f"❌ 未找到 LLM 提供商：{value}\n\n"
+                        "使用「[唤醒词]算卦设置」查看可用列表"
+                    ).use_t2i(False))
+            except Exception as e:
+                event.set_result(MessageEventResult().message(
+                    f"❌ 设置失败：{e}"
+                ).use_t2i(False))
+        
+        elif action in ["persona", "人格", "personality"]:
+            if not value:
+                event.set_result(MessageEventResult().message(
+                    "请指定要设置的人格名称\n\n"
+                    "使用「[唤醒词]算卦设置」查看可用列表"
+                ).use_t2i(False))
+                return
+            
+            # 验证人格是否存在
+            try:
+                persona = next(
+                    (p for p in self.context.persona_manager.personas_v3 
+                     if p.get('name') == value),
+                    None
+                )
+                if persona:
+                    self._ai_divine_persona_name = value
+                    event.set_result(MessageEventResult().message(
+                        f"✅ 已设置人格：{value}\n\n"
+                        "💡 此设置为临时生效，重启后恢复为配置文件中的值"
+                    ).use_t2i(False))
+                else:
+                    event.set_result(MessageEventResult().message(
+                        f"❌ 未找到人格：{value}\n\n"
+                        "使用「[唤醒词]算卦设置」查看可用列表"
+                    ).use_t2i(False))
+            except Exception as e:
+                event.set_result(MessageEventResult().message(
+                    f"❌ 设置失败：{e}"
+                ).use_t2i(False))
+        
+        elif action in ["重置", "reset", "clear", "清除"]:
+            self._ai_divine_provider_id = ""
+            self._ai_divine_persona_name = ""
+            event.set_result(MessageEventResult().message(
+                "✅ 已重置为默认配置\n\n"
+                "• LLM 提供商：使用会话默认\n"
+                "• 人格：使用会话默认"
+            ).use_t2i(False))
+        
+        else:
+            event.set_result(MessageEventResult().message(
+                f"未知的操作：{action}\n\n"
+                "可用操作：\n"
+                "  查看 - 显示当前配置\n"
+                "  provider <ID> - 设置LLM提供商\n"
+                "  persona <名称> - 设置人格\n"
+                "  重置 - 恢复默认配置"
+            ).use_t2i(False))    @filter.command("算卦帮助", alias={"卦帮助", "帮助算卦"})
     async def help_info(self, event: AstrMessageEvent) -> None:
         """显示算卦插件帮助信息"""
         help_text = """【易经算卦插件帮助】
 
 📋 指令列表：
-  [唤醒词]算卦 [问题]   - 生成卦象
-  [唤醒词]算一卦        - 同上
-  [唤醒词]AI解卦        - AI详细解读（需引用算卦结果）
-  [唤醒词]卦象 <卦名>   - 查询特定卦象
-  [唤醒词]六十四卦      - 列出所有卦象
+  [唤醒词]算卦 [问题]     - 生成卦象
+  [唤醒词]算一卦          - 同上
+  [唤醒词]AI解卦          - AI详细解读（需引用算卦结果）
+  [唤醒词]卦象 <卦名>     - 查询特定卦象
+  [唤醒词]六十四卦        - 列出所有卦象
+  [唤醒词]算卦设置        - 查看和设置LLM/人格
 
 📖 使用方法：
 1. 发送 [唤醒词]算卦 进行起卦
 2. 长按算卦结果，选择「引用」
 3. 发送 [唤醒词]AI解卦 获取AI解读
 
-⚙️ 配置项：
-• 启用变卦 - 是否产生变爻
-• 显示起卦过程 - 显示抛掷铜钱详情
-• AI解卦使用T2I - AI解卦结果转图片
-• AI解卦LLM提供商ID - 指定AI解卦使用的LLM
-• AI解卦人格名称 - 指定AI解卦的人格风格
+⚙️ 快速设置：
+  [唤醒词]算卦设置              - 查看当前配置和可用选项
+  [唤醒词]算卦设置 provider ID  - 设置LLM提供商
+  [唤醒词]算卦设置 persona 名称 - 设置人格"""
 
-💡 提示：
-• [唤醒词]默认为 /，可在管理面板修改
-• 可在算卦后附带问题，如：[唤醒词]算卦 事业
-• 可在插件配置中指定AI解卦使用的LLM和人格"""
+        # 添加可用的 LLM 提供商列表
+        help_text += "\n\n🔧 可用的 LLM 提供商：\n"
+        try:
+            providers = self.context.provider_manager.provider_insts
+            if providers:
+                for i, p in enumerate(providers, 1):
+                    provider_id = getattr(p, 'id', None) or getattr(p, 'provider_id', None) or str(p.__class__.__name__)
+                    model = getattr(p, 'model', None) or getattr(p, 'llm_model', None) or ''
+                    help_text += f"  {i}. {provider_id}"
+                    if model:
+                        help_text += f" ({model})"
+                    help_text += "\n"
+            else:
+                help_text += "  暂无已配置的 LLM 提供商\n"
+        except Exception as e:
+            help_text += f"  获取失败：{e}\n"
+
+        help_text += "\n💡 提示：\n• [唤醒词]默认为 /，可在管理面板修改\n• 使用「算卦设置」指令可快速切换LLM和人格"
 
         event.set_result(MessageEventResult().message(help_text).use_t2i(False))
+
     
     @filter.command("卦象", alias={"查卦"})
     async def hexagram_info(self, event: AstrMessageEvent, name: str = "") -> None:
