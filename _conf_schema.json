@@ -40,5 +40,23 @@
     "hint": "在算卦结果末尾显示AI解卦提示",
     "type": "bool",
     "default": true
+  },
+  "ai_divine_provider_id": {
+    "name": "AI解卦LLM提供商ID",
+    "hint": "指定AI解卦使用的LLM提供商ID，留空则使用当前会话配置的提供商。可在AstrBot管理面板的"配置"->"服务提供商配置"中查看已配置的提供商ID。",
+    "type": "string",
+    "default": ""
+  },
+  "ai_divine_persona_name": {
+    "name": "AI解卦人格名称",
+    "hint": "指定AI解卦使用的人格名称，留空则使用当前会话配置的人格。可在AstrBot管理面板的"人格"中查看已创建的人格名称。",
+    "type": "string",
+    "default": ""
+  },
+  "ai_divine_default_prompt": {
+    "name": "AI解卦默认提示词",
+    "hint": "当未指定人格或人格不存在时使用的默认系统提示词",
+    "type": "string",
+    "default": "你是一位精通易经的算命大师，擅长用通俗易懂的语言为人们解卦指引。"
   }
 }

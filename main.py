@@ -2,6 +2,7 @@
 AstrBot 算卦插件
 支持指令调用和 LLM 函数工具调用两种方式
 采用传统金钱卦起卦法
+支持指定 LLM 提供商和人格
 """
 
 import asyncio
@@ -242,6 +243,10 @@ class SuanguaPlugin(star.Star):
         self._ai_divine_use_t2i = True
         self._ai_waiting_message = "正在为您AI解卦【{卦名}卦】，请稍候..."
         self._show_ai_hint = True
+        # 新增：指定 Provider 和人格配置
+        self._ai_divine_provider_id = ""
+        self._ai_divine_persona_name = ""
+        self._ai_divine_default_prompt = "你是一位精通易经的算命大师，擅长用通俗易懂的语言为人们解卦指引。"
         # 算卦结果缓存：key="{unified_msg_origin}_{sender_id}", value=(timestamp, hexagram_name, hexagram_data, changed_name, changed_data, changing_positions)
         # 缓存有效期：10分钟，最大容量：1000
         # 使用 sender_id 区分同一群聊中不同用户的卦象
@@ -321,6 +326,11 @@ class SuanguaPlugin(star.Star):
                 self._ai_waiting_message = self._config.get("ai_waiting_message", 
                     "正在为您AI解卦【{卦名}卦】，请稍候...")
                 self._show_ai_hint = self._config.get("show_ai_hint", True)
+                # 新增：加载指定 Provider 和人格配置
+                self._ai_divine_provider_id = self._config.get("ai_divine_provider_id", "")
+                self._ai_divine_persona_name = self._config.get("ai_divine_persona_name", "")
+                self._ai_divine_default_prompt = self._config.get("ai_divine_default_prompt", 
+                    "你是一位精通易经的算命大师，擅长用通俗易懂的语言为人们解卦指引。")
                 logger.info(f"算卦插件配置已加载")
             except (KeyError, TypeError) as e:
                 logger.warning(f"读取插件配置失败，使用默认值: {e}")
@@ -596,7 +606,7 @@ class SuanguaPlugin(star.Star):
         changing_positions: Optional[list[int]] = None,
         use_t2i: bool = True
     ) -> str:
-        """调用 AI 进行解卦（使用当前会话的人格）
+        """调用 AI 进行解卦（支持指定 Provider 和人格）
         
         Args:
             event: 消息事件
@@ -610,33 +620,75 @@ class SuanguaPlugin(star.Star):
         Returns:
             AI 解卦结果
         """
-        try:
-            provider = self.context.get_using_provider(umo=event.unified_msg_origin)
-        except Exception as e:
-            logger.error(f"获取 provider 失败: {e}")
-            return "未检测到可用的大语言模型提供商。"
+        # 获取 Provider
+        provider = None
+        provider_source = ""
+        
+        if self._ai_divine_provider_id:
+            # 使用配置指定的 Provider
+            try:
+                provider = await self.context.provider_manager.get_provider_by_id(
+                    self._ai_divine_provider_id
+                )
+                if provider:
+                    provider_source = f"指定Provider({self._ai_divine_provider_id})"
+                    logger.info(f"AI解卦使用指定Provider: {self._ai_divine_provider_id}")
+                else:
+                    logger.warning(f"指定的Provider不存在: {self._ai_divine_provider_id}")
+            except Exception as e:
+                logger.error(f"获取指定Provider失败: {e}")
+        
+        if not provider:
+            # 使用当前会话的 Provider
+            try:
+                provider = self.context.get_using_provider(umo=event.unified_msg_origin)
+                if provider:
+                    provider_source = "当前会话Provider"
+            except Exception as e:
+                logger.error(f"获取当前会话Provider失败: {e}")
         
         if not provider:
             return "未检测到可用的大语言模型提供商。"
         
-        # 获取当前会话的人格
+        # 获取人格系统提示词
         persona_system_prompt = ""
-        try:
-            conversation = await self.context.conversation_manager.get_conversation(
-                event.unified_msg_origin
-            )
-            conversation_persona_id = conversation.persona_id if conversation else None
-            
-            _, persona, _, _ = await self.context.persona_manager.resolve_selected_persona(
-                conversation_persona_id=conversation_persona_id,
-            )
-            
-            if persona:
-                persona_system_prompt = persona.get("prompt", "")
-                # 仅记录元信息，不记录实际内容
-                logger.debug(f"已加载人格提示词，长度: {len(persona_system_prompt)}")
-        except Exception as e:
-            logger.debug(f"获取人格失败，使用默认提示词: {e}")
+        persona_source = ""
+        
+        if self._ai_divine_persona_name:
+            # 使用配置指定的人格
+            try:
+                persona = next(
+                    (p for p in self.context.persona_manager.personas_v3 
+                     if p.get("name") == self._ai_divine_persona_name),
+                    None
+                )
+                if persona:
+                    persona_system_prompt = persona.get("prompt", "")
+                    persona_source = f"指定人格({self._ai_divine_persona_name})"
+                    logger.info(f"AI解卦使用指定人格: {self._ai_divine_persona_name}")
+                else:
+                    logger.warning(f"指定的人格不存在: {self._ai_divine_persona_name}")
+            except Exception as e:
+                logger.debug(f"获取指定人格失败: {e}")
+        
+        if not persona_system_prompt:
+            # 尝试使用当前会话的人格
+            try:
+                conversation = await self.context.conversation_manager.get_conversation(
+                    event.unified_msg_origin
+                )
+                conversation_persona_id = conversation.persona_id if conversation else None
+                
+                _, persona, _, _ = await self.context.persona_manager.resolve_selected_persona(
+                    conversation_persona_id=conversation_persona_id,
+                )
+                
+                if persona:
+                    persona_system_prompt = persona.get("prompt", "")
+                    persona_source = "当前会话人格"
+                    logger.debug(f"已加载当前会话人格提示词，长度: {len(persona_system_prompt)}")
+            except Exception as e:
+                logger.debug(f"获取当前会话人格失败: {e}")
         
         # 构建用户提示词
         user_prompt = f"""请根据以下卦象为求卦者解卦。
@@ -664,13 +716,15 @@ class SuanguaPlugin(star.Star):
         if not use_t2i:
             user_prompt += "\n\n【重要】请使用纯文本格式输出，不要使用任何Markdown语法（如**粗体**、#标题、```代码块等），直接用普通文字表达即可。"
         
-        # 如果有人格系统提示词，使用人格的；否则使用内置默认提示词
+        # 确定最终使用的系统提示词
         if persona_system_prompt:
             system_prompt = persona_system_prompt
-            logger.info(f"AI解卦使用人格提示词")
+            logger.info(f"AI解卦使用{persona_source}提示词")
         else:
-            system_prompt = "你是一位精通易经的算命大师，擅长用通俗易懂的语言为人们解卦指引。"
-            logger.info("AI解卦使用默认提示词")
+            system_prompt = self._ai_divine_default_prompt
+            logger.info(f"AI解卦使用默认提示词")
+        
+        logger.info(f"AI解卦配置: Provider来源={provider_source}, 人格来源={persona_source or '默认'}")
         
         # LLM 调用超时时间（秒）
         llm_timeout = 120
@@ -855,12 +909,19 @@ class SuanguaPlugin(star.Star):
     
     @filter.command("AI解卦", alias={"ai解卦"})
     async def ai_divine(self, event: AstrMessageEvent) -> None:
-        """AI解卦 - 引用算卦结果进行AI解卦（使用当前会话人格）"""
+        """AI解卦 - 引用算卦结果进行AI解卦（支持指定Provider和人格）"""
         logger.info("收到AI解卦请求")
         
         # 先检测 LLM 是否可用
         try:
-            provider = self.context.get_using_provider(umo=event.unified_msg_origin)
+            # 优先检查配置的 Provider
+            if self._ai_divine_provider_id:
+                provider = await self.context.provider_manager.get_provider_by_id(
+                    self._ai_divine_provider_id
+                )
+            else:
+                provider = self.context.get_using_provider(umo=event.unified_msg_origin)
+            
             if not provider:
                 event.set_result(MessageEventResult().message(
                     "⚠️ AI解卦功能需要配置大语言模型\n\n"
@@ -1008,11 +1069,13 @@ class SuanguaPlugin(star.Star):
 • 启用变卦 - 是否产生变爻
 • 显示起卦过程 - 显示抛掷铜钱详情
 • AI解卦使用T2I - AI解卦结果转图片
+• AI解卦LLM提供商ID - 指定AI解卦使用的LLM
+• AI解卦人格名称 - 指定AI解卦的人格风格
 
 💡 提示：
 • [唤醒词]默认为 /，可在管理面板修改
 • 可在算卦后附带问题，如：[唤醒词]算卦 事业
-• AI解卦会使用当前会话的人格风格"""
+• 可在插件配置中指定AI解卦使用的LLM和人格"""
 
         event.set_result(MessageEventResult().message(help_text).use_t2i(False))
     
