@@ -43,13 +43,13 @@
   },
   "ai_divine_provider_id": {
     "name": "AI解卦LLM提供商ID",
-    "hint": "指定AI解卦使用的LLM提供商ID，留空则使用当前会话配置的提供商。可在AstrBot管理面板的"配置"->"服务提供商配置"中查看已配置的提供商ID。",
+    "hint": "指定AI解卦使用的LLM提供商ID，留空则使用当前会话配置的提供商。可在AstrBot管理面板的配置-服务提供商配置中查看已配置的提供商ID。",
     "type": "string",
     "default": ""
   },
   "ai_divine_persona_name": {
     "name": "AI解卦人格名称",
-    "hint": "指定AI解卦使用的人格名称，留空则使用当前会话配置的人格。可在AstrBot管理面板的"人格"中查看已创建的人格名称。",
+    "hint": "指定AI解卦使用的人格名称，留空则使用当前会话配置的人格。可在AstrBot管理面板的人格中查看已创建的人格名称。",
     "type": "string",
     "default": ""
   },
