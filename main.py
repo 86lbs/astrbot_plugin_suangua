@@ -830,6 +830,10 @@ class SuanguaPlugin(star.Star):
         if not (message.startswith("算卦") or message.startswith("算一卦")):
             return
         
+        # 排除其他算卦相关指令（算卦设置、算卦帮助等）
+        if message.startswith("算卦设置") or message.startswith("算卦帮助"):
+            return
+        
         # 如果消息以唤醒词开头（如 /算卦），则跳过，由 @filter.command 处理
         # 检查是否有指令前缀符号 (如 / ! . 等)
         if re.match(r'^\s*[/!！。\.、，\-]+', message):
@@ -1075,8 +1079,14 @@ class SuanguaPlugin(star.Star):
                 providers = self.context.provider_manager.provider_insts
                 if providers:
                     for i, p in enumerate(providers, 1):
-                        provider_id = getattr(p, 'id', None) or getattr(p, 'provider_id', None) or str(p.__class__.__name__)
-                        model = getattr(p, 'model', None) or getattr(p, 'llm_model', None) or ''
+                        # 使用 meta() 方法获取 Provider 元数据
+                        try:
+                            meta = p.meta()
+                            provider_id = meta.id
+                            model = meta.model or ''
+                        except Exception:
+                            provider_id = getattr(p, 'provider_config', {}).get('id', str(p.__class__.__name__))
+                            model = getattr(p, 'model_name', '') or getattr(p, 'get_model', lambda: '')()
                         status = "✅" if self._ai_divine_provider_id == provider_id else "  "
                         result += f"  {status} {i}. {provider_id}"
                         if model:
@@ -1217,8 +1227,14 @@ class SuanguaPlugin(star.Star):
             providers = self.context.provider_manager.provider_insts
             if providers:
                 for i, p in enumerate(providers, 1):
-                    provider_id = getattr(p, 'id', None) or getattr(p, 'provider_id', None) or str(p.__class__.__name__)
-                    model = getattr(p, 'model', None) or getattr(p, 'llm_model', None) or ''
+                    # 使用 meta() 方法获取 Provider 元数据
+                    try:
+                        meta = p.meta()
+                        provider_id = meta.id
+                        model = meta.model or ''
+                    except Exception:
+                        provider_id = getattr(p, 'provider_config', {}).get('id', str(p.__class__.__name__))
+                        model = getattr(p, 'model_name', '') or getattr(p, 'get_model', lambda: '')()
                     help_text += f"  {i}. {provider_id}"
                     if model:
                         help_text += f" ({model})"
