@@ -1059,12 +1059,19 @@ class SuanguaPlugin(star.Star):
 
     @filter.command("算卦设置", alias={"卦设置"})
     async def settings(self, event: AstrMessageEvent, action: str = "", value: str = "") -> None:
-        """算卦插件设置
+        """算卦插件设置（需要管理员权限）
         
         Args:
             action: 操作类型（查看/provider/persona/重置）
             value: 设置值
         """
+        # 检查管理员权限
+        if not event.is_admin():
+            event.set_result(MessageEventResult().message(
+                "⚠️ 此操作需要管理员权限"
+            ).use_t2i(False))
+            return
+        
         action = action.strip().lower() if action else ""
         value = value.strip() if value else ""
         
@@ -1226,30 +1233,7 @@ class SuanguaPlugin(star.Star):
   [唤醒词]算卦设置 provider ID  - 设置LLM提供商
   [唤醒词]算卦设置 persona 名称 - 设置人格"""
 
-        # 添加可用的 LLM 提供商列表
-        help_text += "\n\n🔧 可用的 LLM 提供商：\n"
-        try:
-            providers = self.context.provider_manager.provider_insts
-            if providers:
-                for i, p in enumerate(providers, 1):
-                    # 使用 meta() 方法获取 Provider 元数据
-                    try:
-                        meta = p.meta()
-                        provider_id = meta.id
-                        model = meta.model or ''
-                    except Exception:
-                        provider_id = getattr(p, 'provider_config', {}).get('id', str(p.__class__.__name__))
-                        model = getattr(p, 'model_name', '') or getattr(p, 'get_model', lambda: '')()
-                    help_text += f"  {i}. {provider_id}"
-                    if model:
-                        help_text += f" ({model})"
-                    help_text += "\n"
-            else:
-                help_text += "  暂无已配置的 LLM 提供商\n"
-        except Exception as e:
-            help_text += f"  获取失败：{e}\n"
-
-        help_text += "\n💡 提示：\n• [唤醒词]默认为 /，可在管理面板修改\n• 使用「算卦设置」指令可快速切换LLM和人格"
+        help_text += "\n💡 提示：\n• [唤醒词]默认为 /，可在管理面板修改\n• 使用「算卦设置」指令可快速切换LLM和人格（需管理员权限）"
 
         event.set_result(MessageEventResult().message(help_text).use_t2i(False))
 
