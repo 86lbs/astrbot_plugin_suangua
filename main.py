@@ -906,7 +906,7 @@ class SuanguaPlugin(star.Star):
             result += "\n\n💡 引用此消息发送「AI解卦」可获取AI详细解读（10分钟内有效）"
         
         event.set_result(MessageEventResult().message(result).use_t2i(False))
-    
+
     @filter.command("AI解卦", alias={"ai解卦"})
     async def ai_divine(self, event: AstrMessageEvent) -> None:
         """AI解卦 - 引用算卦结果进行AI解卦（支持指定Provider和人格）"""
@@ -1046,7 +1046,9 @@ class SuanguaPlugin(star.Star):
         
         result += f"\n{ai_result}"
         
-        event.set_result(MessageEventResult().message(result).use_t2i(use_t2i))    @filter.command("算卦设置", alias={"卦设置"})
+        event.set_result(MessageEventResult().message(result).use_t2i(use_t2i))
+
+    @filter.command("算卦设置", alias={"卦设置"})
     async def settings(self, event: AstrMessageEvent, action: str = "", value: str = "") -> None:
         """算卦插件设置
         
@@ -1184,7 +1186,9 @@ class SuanguaPlugin(star.Star):
                 "  provider <ID> - 设置LLM提供商\n"
                 "  persona <名称> - 设置人格\n"
                 "  重置 - 恢复默认配置"
-            ).use_t2i(False))    @filter.command("算卦帮助", alias={"卦帮助", "帮助算卦"})
+            ).use_t2i(False))
+
+    @filter.command("算卦帮助", alias={"卦帮助", "帮助算卦"})
     async def help_info(self, event: AstrMessageEvent) -> None:
         """显示算卦插件帮助信息"""
         help_text = """【易经算卦插件帮助】
@@ -1228,7 +1232,6 @@ class SuanguaPlugin(star.Star):
 
         event.set_result(MessageEventResult().message(help_text).use_t2i(False))
 
-    
     @filter.command("卦象", alias={"查卦"})
     async def hexagram_info(self, event: AstrMessageEvent, name: str = "") -> None:
         """卦象查询
@@ -1260,7 +1263,7 @@ class SuanguaPlugin(star.Star):
             result += f"  {YAO_NAMES[i]}：{yao}\n"
         
         event.set_result(MessageEventResult().message(result).use_t2i(False))
-    
+
     @filter.command("六十四卦", alias={"卦列表"})
     async def list_hexagrams(self, event: AstrMessageEvent) -> None:
         """六十四卦列表"""
