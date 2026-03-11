@@ -800,7 +800,7 @@ class SuanguaPlugin(star.Star):
     
     # ==================== 指令调用 ====================
     
-    @filter.command("算卦", alias={"算一卦"})
+    @filter.command("算一卦")
     async def divine(self, event: AstrMessageEvent, question: str = "") -> None:
         """算卦 - 采用传统金钱卦起卦法
         
@@ -1198,7 +1198,7 @@ class SuanguaPlugin(star.Star):
   [唤醒词]算卦设置        - 查看和设置LLM/人格
 
 📖 使用方法：
-1. 发送 [唤醒词]算卦 进行起卦
+1. 发送 [唤醒词]算一卦 进行起卦
 2. 长按算卦结果，选择「引用」
 3. 发送 [唤醒词]AI解卦 获取AI解读
 
