@@ -826,12 +826,17 @@ class SuanguaPlugin(star.Star):
         # 获取消息文本
         message = event.get_message_str().strip()
         
-        # 检查是否以"算卦"或"算一卦"开头
-        if not (message.startswith("算卦") or message.startswith("算一卦")):
+        # 排除其他算卦相关指令（算卦设置、算卦帮助等）
+        # 这个检查要放在最前面，优先排除
+        if "算卦设置" in message or "算卦帮助" in message:
+            return
+        if message.startswith("算卦设置") or message.startswith("算卦帮助"):
+            return
+        if message.endswith("算卦设置") or message.endswith("算卦帮助"):
             return
         
-        # 排除其他算卦相关指令（算卦设置、算卦帮助等）
-        if message.startswith("算卦设置") or message.startswith("算卦帮助"):
+        # 检查是否以"算卦"或"算一卦"开头
+        if not (message.startswith("算卦") or message.startswith("算一卦")):
             return
         
         # 如果消息以唤醒词开头（如 /算卦），则跳过，由 @filter.command 处理
